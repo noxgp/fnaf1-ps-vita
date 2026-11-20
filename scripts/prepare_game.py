@@ -20,11 +20,49 @@ def constant(p):
     if len(code)!=1 or code[0][0]!='EX_CONST': raise Unsupported('nonconstant')
     return int(code[0][3]),expr.comparison
 
+def starting_ai(groups):
+    """Read the night-start counters in Freddy, Bonnie, Chica, Foxy order."""
+    actor_ids = (120, 97, 105, 110)
+    levels, random_bounds = [], []
+    for night, group in enumerate(groups[437:443], 1):
+        condition, once = group['conditions']
+        if (condition['object_type'], condition['object_info'], condition['opcode']) != (7, 16, -81) or constant(condition['parameters'][0]) != (night, 0) or (once['object_type'], once['opcode']) != (-1, -7):
+            raise ValueError(f'Unexpected starting AI conditions for night {night}')
+        values = {}
+        bound = 0
+        for action in group['actions']:
+            actor = action['object_info']
+            if (action['object_type'], action['opcode']) != (7, 80) or actor not in actor_ids or actor in values:
+                raise ValueError(f'Unexpected starting AI action for night {night}')
+            code = NumericParser(bytes.fromhex(action['parameters'][0]['payload_hex'])).parse()
+            if len(code) == 1 and code[0][0] == 'EX_CONST':
+                values[actor] = int(code[0][3])
+            elif (night, actor) == (4, 120) and [op[0] for op in code] == ['EX_CONST', 'EX_CONST', 'EX_RANDOM', 'EX_ADD']:
+                values[actor] = int(code[0][3])
+                bound = int(code[1][3])
+                if bound < 1:
+                    raise ValueError('Invalid Freddy random bound')
+            else:
+                raise ValueError(f'Unsupported starting AI expression for night {night}')
+        if values.keys() != set(actor_ids):
+            raise ValueError(f'Missing starting AI counters for night {night}')
+        levels.append([values[actor] for actor in actor_ids])
+        random_bounds.append(bound)
+    if len(levels) != 6 or not random_bounds[3]:
+        raise ValueError('Missing starting AI rules')
+    return levels, random_bounds
+
+
 def compile_rules():
     groups=json.loads((ROOT/'data/events/05.json').read_text(encoding='utf-8'))['groups']
     lines=['/* Generated from original room events; do not hand edit. */',
            'static int cmp(int a,int b,int op){switch(op){case 0:return a==b;case 1:return a!=b;case 2:return a<=b;case 3:return a<b;case 4:return a>=b;case 5:return a>b;}return 0;}',
            'static int original_camera_animation(const Game *g){int result=13;int view=game_camera_view(g);int room=game_camera_waypoint(g);']
+    levels, random_bounds = starting_ai(groups)
+    rows = ', '.join('{' + ', '.join(map(str, row)) + '}' for row in levels)
+    bounds = ', '.join(map(str, random_bounds))
+    lines[1:1] = [f'static const int original_starting_ai[6][4] = {{{rows}}};',
+                  f'static const unsigned original_freddy_random_bound[6] = {{{bounds}}};']
     count=0; omitted=[]
     counters={56:'view',111:'g->fox',116:'g->picture',16:'g->night',103:'0'}
     def condition(c):

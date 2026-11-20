@@ -162,12 +162,13 @@ void game_start(Game *g, int night) {
     g->power = 999;
     g->pan = 160;
     g->killer = -1;
-    static const int levels[6][4] = {{0, 0, 0, 0}, {0, 3, 1, 1}, {1, 0, 5, 2},
-                                     {1, 2, 4, 6}, {3, 5, 7, 5}, {4, 10, 12, 6}};
     for (int i = 0; i < 4; ++i)
-        g->ai[i] = night == 7 ? save.custom[i] : levels[g->night - 1][i];
-    if (g->night == 4)
-        g->ai[0] += (int)random_n(g, 2);
+        g->ai[i] = night == 7 ? save.custom[i] : original_starting_ai[g->night - 1][i];
+    if (g->night <= 6) {
+        unsigned bound = original_freddy_random_bound[g->night - 1];
+        if (bound)
+            g->ai[0] += (int)random_n(g, bound);
+    }
     for (int i = 0; i < 3; ++i)
         g->position[i] = 75;
     g->picture = 1 + (int)random_n(g, 100);
