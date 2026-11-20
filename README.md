@@ -115,7 +115,7 @@ Full notices are in `third_party/licenses/` and inside the VPK. See [CREDITS.md]
 ## Credits
 
 - Port by **nox**.
-- *Five Nights at Freddy's* © Scott Cawthon. Android edition by Clickteam. This is an unofficial fan port.
+- *Five Nights at Freddy's* © Scott Cawthon. Android edition by Clickteam. This is an unofficial, non-commercial fan port, not affiliated with or endorsed by them.
 - Port code is under the [MIT license](LICENSE).
 
 Report bugs in [Issues](https://github.com/noxgp/fnaf1-ps-vita/issues) with the app version, night/camera, Vita firmware and steps to reproduce. Never attach game files or save files.
