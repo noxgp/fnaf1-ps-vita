@@ -19,11 +19,11 @@ class ImageFormatTests(unittest.TestCase):
     def test_rgb565_primaries_and_odd_row_padding(self):
         source = struct.pack("<HHHH", 0xF800, 0x07E0, 0x001F, 0xFFFF)
         image = decode_image(4, 3, 1, source)
-        self.assertEqual(list(image.getdata()), [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)])
+        self.assertEqual([image.getpixel((x, 0)) for x in range(image.width)], [(255, 0, 0, 255), (0, 255, 0, 255), (0, 0, 255, 255)])
 
     def test_rgba4444_has_full_white_and_half_alpha(self):
         image = decode_image(1, 2, 1, struct.pack("<HH", 0xFFFF, 0xF008))
-        self.assertEqual(list(image.getdata()), [(255, 255, 255, 255), (255, 0, 0, 136)])
+        self.assertEqual([image.getpixel((x, 0)) for x in range(image.width)], [(255, 255, 255, 255), (255, 0, 0, 136)])
 
     def test_encoded_image_dimensions_checked(self):
         encoded = io.BytesIO()

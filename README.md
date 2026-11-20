@@ -6,6 +6,8 @@ Unofficial native adaptation of the Android game's data for PS Vita. This is a g
 
 The public VPK contains the executable, original text-only launcher artwork and dependency notices. **It contains no APK, original game images, audio or subtitle pack.** You must prepare data locally from your own supported copy.
 
+**Host support:** The Data Tool and build workflow are supported on Windows. Asset preparation uses local Windows fonts, and the build uses PowerShell. Linux and macOS are not supported in this beta.
+
 ## Compatibility
 
 The tested application-data revision reports Android version **2.0.7**. App version alone does not guarantee compatibility. The preparation tool verifies the `res/raw/application.ccn` SHA-256:

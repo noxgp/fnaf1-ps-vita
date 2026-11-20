@@ -10,6 +10,6 @@
 - Cousine: Google Fonts project, SIL Open Font License 1.1. Unmodified font included for native overlays and original launcher artwork. Upstream: https://github.com/googlefonts/cousine ; downloaded font SHA-256: 5a57f0184000371cb22fe3fcea4c500354cab1a69efaf7beaf3e6eca6ecfefea.
 - Pillow, Python, Unicorn and FFmpeg are external preparation/test dependencies, not bundled as executables/libraries in the release tool ZIP.
 
-Reference projects consulted during development include GhostNear/FNaF1 and the Vita FNAF adaptation under upstream/vita-fnaf1 in the private workspace, and CTFak format research. Their source trees, binaries and extracted data are not included here. This repository does not relicense third-party or original game material.
+Development references: [GhostNear/VitaFNAF1](https://github.com/ghostnear/VitaFNAF1) (MIT), [sillysquiredev/vita-fnaf1](https://github.com/sillysquiredev/vita-fnaf1) (GPL-3.0), and [CTFAK 2.0](https://github.com/CTFAK/CTFAK2.0) (AGPL-3.0).
 
 The public application includes frame identifiers, geometry and game-specific runtime rules needed to interpret the supported data revision; it is not a complete Clickteam runtime and does not include the source APK or its media bank.
