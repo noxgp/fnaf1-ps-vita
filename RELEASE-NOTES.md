@@ -4,14 +4,14 @@ Vita app version `00.23` · Title ID `FNAFSCN01`
 
 ### Controls
 
-- Added Contextual, Classic and Custom layouts under **Options → Controls**. Contextual uses one door and one light button for the side you face. Classic gives each side its own buttons.
+- Added Contextual, Classic and Custom layouts under **Options → Controls**. Contextual uses R for the door and Square (hold) for the light on the side you face. L or Cross raises and lowers the monitor. Classic uses L/R for the left/right doors, Square/Circle (hold) for the left/right lights, and Cross for the monitor.
 - Custom supports assigning L, R and the four face buttons to individual gameplay actions. The selected layout and bindings are saved. Touch controls work with every layout.
 - Hold either edge of the touchscreen to look around the office. Tap visible panels, the monitor bar or the camera map to interact. Removed the on-screen pause label. START pauses the game.
 
 ### Office, cameras and Extras
 
-- Strengthened panorama rendering in the office and added it to the camera feed. The camera map, labels and HUD stay readable.
-- Doors animate faster and wait for the current animation to finish before accepting another press. Door and light inputs require facing the side panel with the monitor down. Held lights start flickering after about 120 ms.
+- Strengthened the office panorama and applied the **Perspective** setting to the camera feed. The camera map, labels and HUD stay flat.
+- Doors open and close in about half a second and wait for the animation to finish before accepting another press. Door and light inputs require facing the side panel with the monitor fully lowered. Held lights start flickering after about 120 ms.
 - When a camera has multiple occupants and only separate images are available, the feed cycles through those images. Cameras with group artwork keep their group view.
 - Radar uses portraits for Freddy, Bonnie, Chica and Foxy and shows separate markers when they share a camera.
 - Enabled Extras and plushies show a checkmark in a white circle.
@@ -21,7 +21,7 @@ Vita app version `00.23` · Title ID `FNAFSCN01`
 - Menu elements appear together and the menu track loads first. Gameplay audio loads in the background.
 - Shortened the startup and night transitions. New Game and Continue show the night number with a small preparation indicator when needed.
 - Bonnie and Chica can jam a door, and their office attack requires raising and lowering the monitor.
-- Circus ambience plays less often and yields to Freddy's kitchen music. The outage music now has a one-in-five chance to start every five seconds, with a 20-second fallback.
+- Circus ambience plays less often, has a 60-second cooldown, and stops when Freddy's kitchen music starts. The outage music now has a one-in-five chance to start every five seconds, with a 20-second fallback.
 - Added the **Update 2** label to the title screen.
 
 ### Installation and testing
