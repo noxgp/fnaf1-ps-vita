@@ -247,10 +247,13 @@ static void frame(int h, int perspective) {
 int run_checks(void) {
     CHECK(gpu_init() == 0, 1);
     frame(1, 1);
-    CHECK(requested[1] == 2 && !gpu_texture_ready(1) && !waits && !arrays, 2);
+    CHECK(requested[1] == 2 && !gpu_texture_ready(1) && !gpu_queue_draw_ready() && !waits &&
+              !arrays,
+          2);
     ready[1] = 1;
     frame(1, 1);
-    CHECK(gpu_texture_ready(1) && waits == 1 && arrays == 1 && !draws, 3);
+    CHECK(gpu_texture_ready(1) && gpu_queue_draw_ready() && waits == 1 && arrays == 1 && !draws,
+          3);
     unsigned old_waits = waits, old_resets = resets, old_used = used;
     frame(1, 1);
     CHECK(waits == old_waits && resets == old_resets && used > old_used && arrays == 2, 4);

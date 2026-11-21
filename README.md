@@ -6,26 +6,34 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v0.1.0-beta.1` · **Vita application version:** `00.17` · **Title ID:** `FNAFSCN01`
+**Release:** `v0.1.0-beta.3 (Update 2)` · **Vita application version:** `00.23` · **Title ID:** `FNAFSCN01`
+
+See [patch notes](RELEASE-NOTES.md) for all changes in Update 2.
 
 ## Features
 
 - Nights 1–5, Night 6 and Custom Night
 - All four animatronics, the power outage and Freddy's outage attack, rare events and phone calls
-- Cameras with room effects and the office perspective effect
+- Cameras with room effects and optional perspective for the camera feed and office
 - Subtitles in 11 languages, including Japanese, Chinese and Korean
-- Touch controls and physical buttons
-- Extras as local switches (no store purchases)
+- Touch controls plus Contextual, Classic and Custom button layouts
+- Extras as local switches, with map portraits when Radar is enabled
 - Saves to `ux0:data/fnaf1/progress.sav`
 
 ## Controls
 
-| Where | Button | Action |
+Open **Options → Controls** to choose a layout:
+
+- **Contextual** (default) uses one door and one light button for the side you face.
+- **Classic** uses L/R for the left/right doors, Square/Circle for the left/right lights, and Cross for the monitor.
+- **Custom** lets you assign L, R or the four face buttons to actions. Select an action with Cross and press a button to assign it. Left/Right cycles through the choices, including Unassigned. Assigning an occupied button swaps it with the previous binding. D-pad, Start, Select and touch keep their usual actions.
+
+| Where | Contextual button | Action |
 |---|---|---|
-| Office | L / R | Left / right door |
-| Office | Hold □ / ○ | Left / right light |
+| Office | R | Toggle the door on the side you are facing |
+| Office | Hold □ | Light the side you are facing |
 | Office | D-pad ← / → or left stick | Look left / right |
-| Office / Cameras | ✕ | Raise / lower the camera monitor |
+| Office / Cameras | L or ✕ | Raise / lower the camera monitor |
 | Cameras | D-pad | Switch cameras |
 | Office / Cameras | △ | Mute the phone call |
 | During a night | Start | Open the pause menu |
@@ -33,7 +41,7 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 | Title screen | Select | Toggle the diagnostic HUD |
 | Menus | D-pad / ✕ / ○ | Move / confirm / back |
 
-The touch screen works for the doors, lights, camera map and monitor bar, and for Freddy's poster nose.
+Hold either edge of the touchscreen to look around. Tap a visible door button, hold its light button, or tap the monitor bar and camera map. You can also tap Mute Call and Freddy's poster nose.
 
 In Extras, Unlimited Power, Fast Nights and Radar disable progress and stars for that run. Plushies don't.
 
@@ -54,6 +62,10 @@ You need a Vita with homebrew support and VitaShell. You also need a **Windows**
 
 The prepared folder contains the game's files. Keep it for yourself. Don't upload it or attach it to anything.
 
+### Upgrading from a previous public beta
+
+Install the new VPK over the existing version with VitaShell. The prepared game-data format is the same, so keep `ux0:data/fnaf1/` and its saves in place.
+
 ### Upgrading from the private 00.16 build
 
 Keep `ux0:data/fnaf1/progress.sav` and `progress.bak`, and don't uninstall the game. The public build loads its menu graphics from the data folder, so prepare a UI-only update into an empty folder:
@@ -66,7 +78,7 @@ Merge it into `ux0:data/fnaf1/`, then install the new VPK.
 
 ## Known limitations
 
-- **Beta.** The 00.17 build passed local validation and was tested on a physical PS Vita. See [testing](docs/TESTING.md) for the reported result.
+- **Beta.** The 00.23 build passed local validation and was tested on a physical PS Vita. See [testing](docs/TESTING.md) for the reported result.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**
@@ -82,7 +94,7 @@ py -3 -m pip install -r requirements.txt
 ./scripts/build.ps1 -SdkPath "C:\VitaSDK"
 ```
 
-The script runs the Python tests and the ARM core, renderer, reader, audio and UI checks, then writes the VPK to `out/`. The VPK only contains files from an allowlist: the executable, Vita app metadata, original launcher artwork and license notices. The Python format tests work without game data.
+The script runs the Python tests and the ARM core, renderer, reader, audio and UI checks, then writes the VPK to `out/`. The package contains the executable, Vita metadata, launcher artwork and license notices. The published release uses the classic icon and LiveArea artwork. Pass `-LauncherVpk` with a local copy of the [beta.2 VPK](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v0.1.0-beta.2) to keep those visuals in your own build. Builds without that argument use the text-only launcher art in the repository. The Python format tests work without game data.
 
 ### Source layout
 

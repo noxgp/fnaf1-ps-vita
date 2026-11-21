@@ -323,7 +323,7 @@ int capture_case(int which) {
         g.camera_flicker = 10;
         capture_missing_handle = 37;
     }
-    game_view_prepare(&g, 2000, 22000);
+    game_view_prepare(&g, 2000, 22000, 0);
     capture_missing_handle = -1;
     return capture_count;
 }

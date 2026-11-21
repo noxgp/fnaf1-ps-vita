@@ -12,7 +12,7 @@
 #define OV_EXCLUDE_STATIC_CALLBACKS
 #include <vorbis/vorbisfile.h>
 extern void game_audio_test_step(int16_t out[2048]);
-extern int game_audio_test_prepare(const AudioAsset *assets, unsigned count);
+extern int game_audio_test_prepare(const AudioAsset *assets, unsigned count, int complete);
 typedef struct {
     int active, id;
     unsigned position;
@@ -185,9 +185,17 @@ int sceAudioOutReleasePort(int port) {
             return 900 + (n);                                                                      \
     } while (0)
 int run_checks(void) {
-    CHECK(!game_audio_start() && !game_audio_ready(), 1);
-    const AudioAsset assets[] = {{1, 0, 17}, {2, 0, 12332}, {35, 0, 12332}};
-    CHECK(!game_audio_test_prepare(assets, 3) && game_audio_ready() && opens == 3 && reads == 3,
+    CHECK(!game_audio_start() && !game_audio_ready() && !game_audio_title_ready(), 1);
+    const AudioAsset title = {35, 0, 12332};
+    CHECK(!game_audio_test_prepare(&title, 1, 0) && game_audio_title_ready() && !game_audio_ready(),
+          21);
+    game_audio_settings(100, 0, 1);
+    game_audio_play(35, 0, 1, 100);
+    game_audio_test_step(output);
+    CHECK(output[0] == 1000 && opens == 1 && !game_audio_errors(), 22);
+    game_audio_play(-1, 0, 0, 0);
+    const AudioAsset assets[] = {{1, 0, 17}, {2, 0, 12332}};
+    CHECK(!game_audio_test_prepare(assets, 2, 1) && game_audio_ready() && opens == 3 && reads == 3,
           12);
     game_audio_settings(100, 0, 1);
     game_audio_play(1, 23, 0, 100);

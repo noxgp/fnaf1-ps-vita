@@ -26,6 +26,11 @@ void game_hallucinate(Game *g) {
 static int near_office(int pos) {
     return (pos >= 77 && pos <= 81) || pos == 99 || pos == 100;
 }
+static int kitchen_music_volume(const Game *g) {
+    if (g->position[0] != 83)
+        return 0;
+    return g->monitor && game_camera_view(g) == 6 ? 50 : 5;
+}
 void game_events_levels(Game *g) {
     int threats = near_office(g->position[1]) + near_office(g->position[2]) + (g->fox >= 2);
     const int danger[] = {0, 30, 50, 75};
@@ -37,10 +42,7 @@ void game_events_levels(Game *g) {
                       : !g->monitor              ? 10
                       : game_camera_view(g) == 6 ? 75
                                                  : 20);
-    game_sound_volume(g, A_FREDDY_MUSIC,
-                      g->position[0] != 83                     ? 0
-                      : g->monitor && game_camera_view(g) == 6 ? 50
-                                                               : 5);
+    game_sound_volume(g, A_FREDDY_MUSIC, kitchen_music_volume(g));
     game_sound_volume(g, A_CAMERA, g->monitor ? 100 : 0);
     game_sound_volume(g, A_HALLUCINATION, g->hallucination_left ? 100 : g->murmur_volume);
 }
@@ -70,9 +72,11 @@ void game_events_tick(Game *g, unsigned ms) {
         game_hallucinate(g);
     if (g->last_freddy_position != g->position[0]) {
         if (g->position[0] == 83) {
-            game_sound(g, 30, A_FREDDY_MUSIC, 0, 5);
+            game_sound(g, -1, A_CREEK, 0, 0);
+            game_sound(g, 30, A_FREDDY_MUSIC, 0, kitchen_music_volume(g));
             g->freddy_music_ms = 0;
-        }
+        } else if (g->last_freddy_position == 83)
+            game_sound(g, -1, A_FREDDY_MUSIC, 0, 0);
         if (g->position[0] == 122)
             game_sound(g, 59, A_INSIDE, 0, 100);
         g->last_freddy_position = g->position[0];
@@ -101,11 +105,15 @@ void game_events_tick(Game *g, unsigned ms) {
             }
         }
     }
+    g->ambience_cooldown_ms =
+        g->ambience_cooldown_ms > ms ? g->ambience_cooldown_ms - ms : 0;
     g->event_five_ms += ms;
     while (g->event_five_ms >= 5000) {
         g->event_five_ms -= 5000;
-        if (game_event_random(g, 30) == 0)
-            game_sound(g, 29, A_CREEK, 0, 100);
+        if (game_event_random(g, 60) == 0 && !g->ambience_cooldown_ms && g->position[0] != 83) {
+            game_sound(g, 29, A_CREEK, 0, 60);
+            g->ambience_cooldown_ms = 60000;
+        }
         intruder(g, 0);
         intruder(g, 1);
     }
@@ -129,7 +137,7 @@ void game_events_tick(Game *g, unsigned ms) {
         g->freddy_music_ms += ms;
         if (g->freddy_music_ms >= 300000) {
             g->freddy_music_ms -= 300000;
-            game_sound(g, 30, A_FREDDY_MUSIC, 0, 5);
+            game_sound(g, 30, A_FREDDY_MUSIC, 0, kitchen_music_volume(g));
         }
     }
     game_events_levels(g);

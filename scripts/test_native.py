@@ -52,12 +52,12 @@ result = machine.reg_read(UC_ARM_REG_R0)
 if result:
     raise AssertionError(f"Actual ARM runtime check {result} failed")
 if 'game_audio_checks' in os.environ.get('FNAF_CHECK_ELF',''):
-    print('20 game audio ARM checks passed: RAM preload, no file I/O during mixing/looping, memory callback bounds, channel 23, volume, pause, mute and cleanup (mock WAV input/OS, no device output).')
+    print('Game audio ARM checks passed: staged menu and gameplay preload, no file I/O during mixing/looping, memory callback bounds, channel 23, volume, pause, mute and cleanup (mock WAV input/OS, no device output).')
 elif 'asset_checks' in os.environ.get('FNAF_CHECK_ELF',''):
     print('Asset reader ARM checks passed: foreground priority, obsolete-job cancellation/demotion, L8 conversion, ownership, malformed files, bounded staging, eviction and cleanup (mock I/O; no device latency measurement).')
 elif 'renderer_checks' in os.environ.get('FNAF_CHECK_ELF',''):
     print('Renderer ARM checks passed: shared sprite pages, crop UVs with/without perspective, page ownership/eviction protection, asynchronous misses, fences and bounded cache (mock GPU; no device FPS measurement).')
 elif 'game_capture' in os.environ.get('FNAF_CHECK_ELF',''):
-    print('124 Android UI ARM checks passed: first-ready camera image, neighbor warming, resident noise, interpolated doors without double images, office preload and prior power-out/touch checks (no Vita OS/GPU emulation).')
+    print('Android UI ARM checks passed: first-ready camera image, neighbor warming, resident noise, interpolated doors without double images, office preload and prior power-out/touch checks (no Vita OS/GPU emulation).')
 else:
     print("Native ARM regression checks passed: legacy runtime/audio plus game clock, AI attacks, power, all night endings, options and save validation (no Vita OS/GPU/audio-device emulation).")

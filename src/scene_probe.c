@@ -11,6 +11,7 @@
 #include "game.h"
 #include "game_events.h"
 #include "game_view.h"
+#include "android_menu.h"
 #include "game_audio.h"
 #include "gpu_renderer.h"
 #include "data_files.h"
@@ -18,8 +19,10 @@
 #include "touch_input.h"
 unsigned int _newlib_heap_size_user = 112 * 1024 * 1024;
 static Game game;
+static int title_revealed;
 static int runtime_loading(void) {
-    return !game_audio_ready() || game_view_loading(&game);
+    return (game.phase == G_TITLE && !title_revealed) ||
+           (game.phase == G_PLAY && !game_audio_ready()) || game_view_loading(&game);
 }
 static int public_ui_data(void) {
     const int ids[] = {7000, 7007, 7800, 7801};
@@ -128,9 +131,9 @@ static unsigned translate(unsigned b) {
     if (b & SCE_CTRL_CROSS)
         r |= IN_OK;
     if (b & SCE_CTRL_CIRCLE)
-        r |= IN_BACK | IN_LIGHT_R;
+        r |= IN_BACK;
     if (b & SCE_CTRL_SQUARE)
-        r |= IN_LIGHT_L;
+        r |= IN_LIGHT;
     if (b & SCE_CTRL_TRIANGLE)
         r |= IN_PHONE;
     if (b & SCE_CTRL_LTRIGGER)
@@ -171,9 +174,13 @@ int main(void) {
         game_set_date(&game, date.month, date.day);
     int missing = game_data(), save_error = 0, rumbling = 0;
     unsigned previous = 0, accum = 0, frames = 0, fps = 0, clock_ms = 0, microseconds = 0;
+    GameSound pending_audio[AUDIO_VOICES] = {0};
+    unsigned pending_channels = 0;
     if (!missing)
         game_audio_start();
     while (!game.quit) {
+        if (game.phase != G_TITLE)
+            title_revealed = 0;
         SceCtrlData pad = {0};
         sceCtrlPeekBufferPositive(0, &pad, 1);
         unsigned pressed = pad.buttons & ~previous;
@@ -234,12 +241,31 @@ int main(void) {
             }
         loading = runtime_loading();
         int pause = loading || game.phase == G_PAUSE || game.phase == G_HELP ||
-                    ((game.phase == G_OPTIONS || game.phase == G_AUDIO_OPTIONS) &&
-                     game.options_parent == G_PAUSE);
+                    ((game.phase == G_OPTIONS || game.phase == G_AUDIO_OPTIONS ||
+                      game.phase == G_CONTROL_OPTIONS) && game.options_parent == G_PAUSE);
         game_audio_settings(game.save.options.volume, pause, game.save.options.music);
+        int audio_ready = game_audio_ready() ||
+            (game_audio_title_ready() && (android_menu_phase(game.phase) ||
+                                          game.phase == G_NEWSPAPER));
+        if (audio_ready && pending_channels) {
+            for (int i = 0; i < AUDIO_VOICES; ++i) {
+                if (pending_channels & (1u << i)) {
+                    GameSound s = pending_audio[i];
+                    if (s.id >= 0)
+                        game_audio_play(s.id, i, s.loop, s.volume);
+                }
+            }
+            pending_channels = 0;
+        }
         for (int i = 0; i < game.sound_count; ++i) {
             GameSound s = game.sounds[i];
-            game_audio_play(s.id, s.channel, s.loop, s.volume);
+            if (audio_ready)
+                game_audio_play(s.id, s.channel, s.loop, s.volume);
+            else if (s.id != -2) {
+                pending_audio[s.channel] = s;
+                pending_channels |= 1u << s.channel;
+            } else if (pending_channels & (1u << s.channel))
+                pending_audio[s.channel].volume = s.volume;
         }
         game.sound_count = 0;
         if (game.dirty && now >= next_save) {
@@ -267,13 +293,23 @@ int main(void) {
             for (int i = 0; i < 2; ++i)
                 if (rendered.door_ms[i])
                     rendered.door_ms[i] += accum;
-        game_view_prepare(&rendered, clock_ms, game_audio_position(2));
-        gpu_begin();
-        game_view_draw(&rendered, fps, save_error);
-        if (!game_audio_ready()) {
-            gpu_rectangle(0, 2, 960, 540, 0xff000000u);
-            gpu_text(425, 260, "Loading...", 0xffffffffu);
+        int waiting_for_title = rendered.phase == G_TITLE && !title_revealed;
+        if (waiting_for_title)
+            rendered.phase_ms = 500;
+        game_view_prepare(&rendered, waiting_for_title ? 0 : clock_ms, game_audio_position(2),
+                          rendered.phase == G_PLAY && loading);
+        if (waiting_for_title && gpu_queue_draw_ready() && game_audio_title_ready()) {
+            title_revealed = 1;
+            game.phase_ms = rendered.phase_ms;
+            game_audio_settings(game.save.options.volume, 0, game.save.options.music);
         }
+        gpu_begin();
+        if (waiting_for_title && !title_revealed)
+            gpu_text(gpu_asset_errors() ? 180 : 810, 506,
+                     gpu_asset_errors() ? "MENU FILE ERROR - CHECK GAME FILES" : "Preparing...",
+                     0xffffffffu);
+        else
+            game_view_draw(&rendered, fps, save_error);
         if (game_audio_errors())
             gpu_text(180, 52, "AUDIO FILE ERROR - CHECK GAME FILES V2", 0xff5555ffu);
         gpu_end();

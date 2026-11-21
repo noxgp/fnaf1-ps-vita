@@ -125,7 +125,7 @@ static void night(void) {
     g.sound_count = 0;
 }
 static void view(void) {
-    game_view_prepare(&g, 2000, 22000);
+    game_view_prepare(&g, 2000, 22000, 0);
 }
 static int captions(int y) {
     int n = 0;
@@ -233,6 +233,7 @@ int run_presentation_checks(void) {
     for (int display = 0; display < 3; ++display) {
         g.save.options.display = display;
         g.monitor = 1;
+        g.monitor_ms = 0;
         for (int c = 0; c < 11; ++c) {
             int x = camera_map[c].x * 3 / 4, y = 2 + camera_map[c].y * 3 / 4;
             int px = display == 2 ? 117 + x * 726 / 960 : x,
@@ -255,6 +256,17 @@ int run_presentation_checks(void) {
     g.camera_flicker = 10;
     view();
     CHECK(count(37) == 1 && !count(19), 66);
+    int warped_feed = 0, warped_map = 0;
+    int map_handle = scene_art(74, 0, 0);
+    for (int i = 0; i < capture_count; ++i) {
+        warped_feed |= capture_commands[i][0] == 37 && capture_commands[i][6];
+        warped_map |= capture_commands[i][0] == map_handle && capture_commands[i][6];
+    }
+    CHECK(warped_feed && count(map_handle) && !warped_map, 130);
+    g.save.options.perspective = 0;
+    view();
+    for (int i = 0; i < capture_count; ++i)
+        CHECK(capture_commands[i][0] != 37 || !capture_commands[i][6], 131);
     g.camera_flicker = 1;
     view();
     CHECK(count(19) == 1 && !count(37), 67);
@@ -409,7 +421,7 @@ int run_presentation_checks(void) {
     CHECK(count(591) == 1 && count(62) == 1 && count(49) == 1, 106);
     g.monitor = 1;
     g.monitor_ms = 0;
-    game_view_prepare(&g, 1920, 22000);
+    game_view_prepare(&g, 1920, 22000, 0);
     int previous = scene_art(9, 0, 24), wanted = scene_art(9, 0, 25);
     capture_missing_handle = wanted;
     view();
@@ -418,11 +430,16 @@ int run_presentation_checks(void) {
           107);
     capture_missing_handle = -1;
     night();
-    game_input(&g, 0, game_touch(&g, 40, 280, 1), 0);
+    CHECK(game_touch(&g, 40, 190, 0) == IN_LEFT &&
+              game_touch(&g, 920, 190, 0) == IN_RIGHT,
+          125);
+    g.pan = 0;
+    game_input(&g, 0, game_touch(&g, 40, 319, 1), 0);
     CHECK(g.light[0] && g.sound_count == 1 && g.sounds[0].id == 1, 108);
     g.sound_count = 0;
     game_input(&g, 0, 0, 0);
-    game_input(&g, 0, game_touch(&g, 920, 280, 1), 0);
+    g.pan = OFFICE_PAN_MAX;
+    game_input(&g, 0, game_touch(&g, 920, 319, 1), 0);
     CHECK(g.light[1] && g.sound_count == 2 && g.sounds[1].id == 1, 109);
     night();
     g.monitor = 1;
@@ -500,6 +517,34 @@ int run_presentation_checks(void) {
             capture_commands[i][5] == (int)0xffffffffu)
             ++opaque_doors;
     CHECK(opaque_doors == 2, 123);
+    night();
+    g.night = 3;
+    game_view_prepare(&g, 2000, 0, 1);
+    CHECK(count(306) == 1 && count(332) == 1 && !count(591), 126);
+    g.monitor = 1;
+    g.save.options.radar = 1;
+    view();
+    CHECK(count(527) == 1 && count(528) == 1 && count(529) == 1 && count(536) == 1, 127);
+    CHECK(placed(527, 713, 236) && placed(528, 729, 236) &&
+              placed(529, 745, 236) && placed(536, 690, 337), 128);
+    g.fox = 4;
+    view();
+    CHECK(!placed(536, 690, 337) && placed(536, 729, 424), 129);
+    game_touch(&g, 480, 20, 1);
+    CHECK(g.phase == G_PLAY, 132);
+    game_touch(&g, 400, 532, 1);
+    CHECK(!g.monitor, 133);
+    night();
+    g.save.options.control_layout = CONTROL_CUSTOM;
+    g.save.options.control_buttons[CONTROL_MONITOR] = BUTTON_NONE;
+    g.save.options.control_buttons[CONTROL_DOOR] = BUTTON_NONE;
+    g.save.options.control_buttons[CONTROL_LIGHT] = BUTTON_NONE;
+    g.pan = 0;
+    game_touch(&g, 40, 250, 1);
+    game_input(&g, 0, game_touch(&g, 40, 319, 1), 0);
+    CHECK(g.door[0] && g.light[0], 134);
+    game_touch(&g, 400, 532, 1);
+    CHECK(g.monitor, 135);
     for (int i = 0; i < 8; ++i) {
         const int ids[] = {18, 20, 12, 13, 14, 15, 16, 17};
         CHECK(capture_demanded[ids[i]], 124);

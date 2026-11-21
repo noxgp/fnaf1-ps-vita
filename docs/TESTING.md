@@ -1,15 +1,20 @@
 # Release validation
 
-Local validation for v0.1.0-beta.1 / APP_VER 00.17:
+## Update 2 (v0.1.0-beta.3 / APP_VER 00.23)
+
+- Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.
+- The ARM checks ran complete simulated nights with the AI enabled, checked portrait placement and camera perspective, tested menu audio and texture readiness, and verified the three control layouts, touch controls and save compatibility.
+- The maintainer installed and tested the 00.23 build on a physical PS Vita and reported that it worked as expected. Device details, per-check results and measured FPS were not recorded.
+- The release ships the same VPK bytes as the tested 00.23 build.
+
+## Initial packaging validation (v0.1.0-beta.1 / APP_VER 00.17)
 
 - Full preparation from the supplied APK: 529 sprites, 53 normalized sounds, 47 UI text textures, two shared sprite pages, 2,180 subtitle masks and an external caption index; 638 output files checksum-verified.
 - Python format/compiler tests, ARM core/renderer/reader/audio/UI regression checks. Reader tests cover dynamic caption-index loading and malformed index rejection; audio tests deliberately use a wrong size hint to verify actual file-length handling.
 - Public VPK checked by an exact archive allowlist: executable, SFO, original text-only launcher and dependency notices. No game media archive members.
 - Existing gameplay performance optimizations are retained. Native caption dimensions follow the loaded external texture so local font differences do not invalidate packed offsets.
 
-## Hardware validation
-
-The maintainer tested the public 00.17 build on a physical PS Vita and reported that it worked as expected. The device model, firmware, storage type, per-check results and FPS were not recorded.
+The maintainer also tested the public 00.17 build on a physical PS Vita and reported that it worked as expected. The device model, firmware, storage type, per-check results and FPS were not recorded.
 
 ## Checklist for future releases
 

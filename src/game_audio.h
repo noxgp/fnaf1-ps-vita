@@ -7,4 +7,5 @@ void game_audio_settings(int volume, int paused, int music);
 unsigned game_audio_position(int channel);
 int game_audio_errors(void);
 int game_audio_ready(void);
+int game_audio_title_ready(void);
 #endif

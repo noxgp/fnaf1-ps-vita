@@ -109,6 +109,20 @@ static int title_object(int action) {
     const int ids[] = {12, 13, 20, 24, 34, 33};
     return ids[action];
 }
+static void warm_title(const Game *g) {
+    int n = 4 + (g->save.unlocked >= 6) + (g->save.unlocked >= 7);
+    for (int i = 0; i < n; ++i)
+        gpu_queue_warm(scene_art(title_object(game_title_action(g, i)), 0, 0));
+    const int objects[] = {9, 10, 11, 14, 17, 18, 21, 22, 32};
+    for (int i = 0; i < COUNT(objects); ++i)
+        gpu_queue_warm(scene_art(objects[i], 0, 0));
+    const AndroidText *texts[] = {caption(40, 0), caption(41, 0),
+                                  caption(43, g->save.next_night - 1)};
+    for (int i = 0; i < COUNT(texts); ++i)
+        if (texts[i])
+            gpu_queue_warm(texts[i]->handle);
+    gpu_queue_warm(UI_PORT_CREDIT);
+}
 static void title(const Game *g, int confirm) {
     if (confirm) {
         string_original(3, 42, 0);
@@ -153,8 +167,46 @@ static void options(const Game *g) {
         cursor(xs[g->selection], ys[g->selection]);
     else if (g->selection == 6)
         cursor(176, 646);
+    else if (g->selection == OPTIONS_CONTROLS)
+        cursor(688, 646);
     else
         select_original(19, 202);
+}
+enum {
+    CONTROLS_LAYOUT_Y = 108, CONTROLS_ACTION_Y = 150, CONTROLS_ACTION_STEP = 35,
+    CONTROLS_BACK_Y = 453, CONTROLS_VALUE_X = 610
+};
+void android_menu_draw_controls(const Game *g) {
+    if (g->phase == G_OPTIONS) {
+        gpu_text(516, 478, "Controls", 0xffffffffu);
+        return;
+    }
+    const GameOptions *o = &g->save.options;
+    static const char *layouts[] = {"Contextual", "Classic", "Custom"};
+    int y = g->selection == 0 ? CONTROLS_LAYOUT_Y
+            : g->selection == CONTROLS_BACK ? CONTROLS_BACK_Y
+            : CONTROLS_ACTION_Y + (g->selection - CONTROLS_FIRST_ACTION) * CONTROLS_ACTION_STEP;
+    gpu_rectangle(69, y - 5, 796, 28, 0x70494949u);
+    gpu_text(84, 58, "Controls", 0xffffffffu);
+    gpu_text(84, CONTROLS_LAYOUT_Y, "Layout", 0xffffffffu);
+    gpu_text(CONTROLS_VALUE_X, CONTROLS_LAYOUT_Y, layouts[o->control_layout], 0xffffffffu);
+    for (int i = 0; i < CONTROL_ACTION_COUNT; ++i) {
+        int row = CONTROLS_ACTION_Y + i * CONTROLS_ACTION_STEP;
+        uint32_t color = o->control_layout == CONTROL_CUSTOM ||
+                         game_control_binding(o, i) != BUTTON_NONE ? 0xffffffffu : 0xff888888u;
+        gpu_text(84, row, game_control_action_name(i), color);
+        gpu_text(CONTROLS_VALUE_X, row,
+                 g->binding_capture && g->selection == CONTROLS_FIRST_ACTION + i
+                     ? "Press a button"
+                     : game_control_button_name(o, i),
+                 color);
+    }
+    gpu_text(84, CONTROLS_BACK_Y, "Back", 0xffffffffu);
+    const char *hint = g->binding_capture ? "Press L, R, or a face button. Select cancels."
+                       : o->control_layout == CONTROL_CUSTOM
+                           ? "Cross to bind. Left / Right to cycle or unassign."
+                           : "Left / Right to change layout. Select Custom to edit.";
+    gpu_text(84, 503, hint, 0xffdddddd);
 }
 static void audio_options(const Game *g) {
     native_caption(UI_MUSIC, 176, 80);
@@ -197,6 +249,18 @@ static void extras(const Game *g) {
     if (g->selection == 7)
         select_original(20, 202);
 }
+void android_menu_draw_extras_status(const Game *g) {
+    const GameOptions *o = &g->save.options;
+    for (int i = 0; i < 4; ++i)
+        if (o->plush[i])
+            gpu_check_badge(379 + i * 180, 57);
+    if (g->selection < 3 || g->selection == 7) {
+        const int enabled[] = {o->unlimited, o->fast, o->radar};
+        for (int i = 0; i < 3; ++i)
+            if (enabled[i])
+                gpu_check_badge(162 + i * 180, 486);
+    }
+}
 static void ai_value(int value, int center) {
     const int digits[] = {556, 557, 558, 559, 560, 561, 562, 563, 564, 565};
     int frames[2], n = value >= 10 ? 2 : 1;
@@ -235,18 +299,23 @@ static void custom(const Game *g) {
 }
 int android_menu_phase(int p) {
     return p == G_WARNING || p == G_TITLE || p == G_CONFIRM_NEW || p == G_OPTIONS ||
-           p == G_AUDIO_OPTIONS || p == G_EXTRAS || p == G_CUSTOM || p == G_INTRO;
+           p == G_AUDIO_OPTIONS || p == G_EXTRAS || p == G_CUSTOM || p == G_INTRO ||
+           p == G_CONTROL_OPTIONS;
+}
+void android_menu_night_card(int night) {
+    original(4, 45, 0, 0);
+    original(4, 46, night == 1 ? 0 : night + 10, 0);
 }
 void android_menu_prepare(const Game *g, unsigned ms) {
     int p = g->phase;
     if (p == G_WARNING) {
         original(0, 0, 0, 0);
-        fade(fade_alpha(g->phase_ms, 4500, 700, 1000));
+        warm_title(g);
+        fade(fade_alpha(g->phase_ms, WARNING_DURATION_MS, 400, 550));
         return;
     }
     if (p == G_INTRO) {
-        original(4, 45, 0, 0);
-        original(4, 46, g->night == 1 ? 0 : g->night + 10, 0);
+        android_menu_night_card(g->night);
         if (g->phase_ms < 300) {
             int frame = (int)(g->phase_ms / 27);
             int h = scene_art(44, 0, frame);
@@ -254,7 +323,7 @@ void android_menu_prepare(const Game *g, unsigned ms) {
             if (im)
                 gpu_queue_image(h, 0, 2, 960, im->height * .75f, 0xffffffffu, 0);
         }
-        fade(fade_alpha(g->phase_ms, 3000, 400, 600));
+        fade(fade_alpha(g->phase_ms, NIGHT_INTRO_DURATION_MS, 300, 0));
         return;
     }
     if (p != G_CUSTOM)
@@ -265,6 +334,8 @@ void android_menu_prepare(const Game *g, unsigned ms) {
         options(g);
     else if (p == G_AUDIO_OPTIONS)
         audio_options(g);
+    else if (p == G_CONTROL_OPTIONS)
+        fade(180);
     else if (p == G_EXTRAS)
         extras(g);
     else if (p == G_CUSTOM)
@@ -285,6 +356,23 @@ static int hit_original(int scene, int obj, int x, int y) {
                im->height + 16);
 }
 void android_menu_touch(Game *g, int x, int y) {
+    if (g->phase == G_CONTROL_OPTIONS) {
+        if (hit(x, y, 69, CONTROLS_BACK_Y - 5, 796, 28)) {
+            if (g->binding_capture)
+                game_input(g, IN_HELP, 0, 0);
+            g->selection = CONTROLS_BACK;
+            game_input(g, IN_OK, 0, 0);
+        } else if (!g->binding_capture && hit(x, y, 69, CONTROLS_LAYOUT_Y - 5, 796, 28)) {
+            g->selection = 0;
+            game_input(g, IN_OK, 0, 0);
+        } else if (!g->binding_capture && x >= 69 && x < 865 &&
+                   y >= CONTROLS_ACTION_Y - 5 &&
+                   y < CONTROLS_ACTION_Y - 5 + CONTROL_ACTION_COUNT * CONTROLS_ACTION_STEP) {
+            g->selection = CONTROLS_FIRST_ACTION + (y - CONTROLS_ACTION_Y + 5) / CONTROLS_ACTION_STEP;
+            game_input(g, x >= CONTROLS_VALUE_X ? IN_RIGHT : IN_OK, 0, 0);
+        }
+        return;
+    }
     /* Coordinates enter in the 960x540 game viewport, matching display transforms. */
     x = x * 4 / 3;
     y = (y - 2) * 4 / 3;
@@ -318,6 +406,9 @@ void android_menu_touch(Game *g, int x, int y) {
                 }
         if (hit(x, y, 150, 610, 230, 80)) {
             g->selection = 6;
+            game_input(g, IN_OK, 0, 0);
+        } else if (hit(x, y, 650, 610, 260, 80)) {
+            g->selection = OPTIONS_CONTROLS;
             game_input(g, IN_OK, 0, 0);
         } else if (hit_original(19, 202, x, y)) {
             g->selection = 7;

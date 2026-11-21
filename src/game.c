@@ -34,6 +34,7 @@ static void phase(Game *g, int p) {
     g->phase = p;
     g->phase_ms = 0;
     g->selection = 0;
+    g->binding_capture = 0;
 }
 static void title(Game *g) {
     int keep_music = g->phase == G_OPTIONS || g->phase == G_EXTRAS || g->phase == G_CUSTOM ||
@@ -59,9 +60,91 @@ static void warning_done(Game *g) {
     else
         title(g);
 }
+static const unsigned char control_presets[][CONTROL_ACTION_COUNT] = {
+    {BUTTON_CROSS, BUTTON_R, BUTTON_SQUARE, BUTTON_NONE, BUTTON_NONE, BUTTON_NONE,
+     BUTTON_NONE, BUTTON_TRIANGLE},
+    {BUTTON_CROSS, BUTTON_NONE, BUTTON_NONE, BUTTON_L, BUTTON_R, BUTTON_SQUARE,
+     BUTTON_CIRCLE, BUTTON_TRIANGLE},
+};
+static const unsigned control_inputs[CONTROL_BUTTON_COUNT] = {
+    0, IN_OK, IN_BACK, IN_LIGHT, IN_PHONE, IN_L, IN_R,
+};
+int game_control_binding(const GameOptions *o, int action) {
+    return o->control_layout == CONTROL_CUSTOM ? o->control_buttons[action]
+                                               : control_presets[o->control_layout][action];
+}
+const char *game_control_action_name(int action) {
+    static const char *names[] = {"Monitor", "Door on viewed side", "Light on viewed side",
+                                  "Left door", "Right door", "Left light", "Right light",
+                                  "Mute phone"};
+    return names[action];
+}
+const char *game_control_button_name(const GameOptions *o, int action) {
+    static const char *names[] = {"Unassigned", "Cross", "Circle", "Square", "Triangle", "L", "R"};
+    if (o->control_layout == CONTROL_CONTEXTUAL && action == CONTROL_MONITOR)
+        return "L / Cross";
+    return names[game_control_binding(o, action)];
+}
+static unsigned control_input(const Game *g, int action) {
+    return control_inputs[game_control_binding(&g->save.options, action)];
+}
+static void bind_control(Game *g, int action, int button) {
+    unsigned char *buttons = g->save.options.control_buttons;
+    for (int i = 0; button != BUTTON_NONE && i < CONTROL_ACTION_COUNT; ++i)
+        if (i != action && buttons[i] == button) {
+            buttons[i] = buttons[action];
+            break;
+        }
+    buttons[action] = (unsigned char)button;
+    g->dirty = 1;
+}
+static void controls_input(Game *g, unsigned pressed) {
+    GameOptions *o = &g->save.options;
+    if (g->binding_capture) {
+        if (pressed & (IN_PAUSE | IN_HELP)) {
+            g->binding_capture = 0;
+            return;
+        }
+        unsigned physical = pressed & (IN_OK | IN_BACK | IN_LIGHT | IN_PHONE | IN_L | IN_R);
+        if (physical && !(physical & (physical - 1)))
+            for (int i = BUTTON_CROSS; i < CONTROL_BUTTON_COUNT; ++i)
+                if (physical == control_inputs[i]) {
+                    bind_control(g, g->selection - CONTROLS_FIRST_ACTION, i);
+                    g->binding_capture = 0;
+                    break;
+                }
+        return;
+    }
+    if ((pressed & IN_BACK) || (g->selection == CONTROLS_BACK && (pressed & IN_OK))) {
+        phase(g, G_OPTIONS);
+        g->selection = OPTIONS_CONTROLS;
+        return;
+    }
+    if (pressed & (IN_UP | IN_DOWN)) {
+        int size = CONTROLS_BACK + 1;
+        int dir = pressed & IN_UP ? size - 1 : 1;
+        g->selection = (g->selection + dir) % size;
+    }
+    int direction = pressed & IN_LEFT ? -1 : pressed & IN_RIGHT ? 1 : 0;
+    if (g->selection == 0) {
+        if (direction || (pressed & IN_OK)) {
+            o->control_layout = (o->control_layout + (direction ? direction : 1) +
+                                 CONTROL_LAYOUT_COUNT) % CONTROL_LAYOUT_COUNT;
+            g->dirty = 1;
+        }
+    } else if (g->selection < CONTROLS_BACK && o->control_layout == CONTROL_CUSTOM) {
+        int action = g->selection - CONTROLS_FIRST_ACTION;
+        if (direction)
+            bind_control(g, action, (o->control_buttons[action] + direction + CONTROL_BUTTON_COUNT) %
+                                    CONTROL_BUTTON_COUNT);
+        else if (pressed & IN_OK)
+            g->binding_capture = 1;
+    }
+}
 void game_defaults(GameSave *s) {
     memset(s, 0, sizeof(*s));
     s->options.perspective = 1;
+    memcpy(s->options.control_buttons, control_presets[CONTROL_CONTEXTUAL], CONTROL_ACTION_COUNT);
     s->options.vibration = 1;
     s->options.subtitles = 1;
     s->options.forced = 1;
@@ -103,6 +186,34 @@ int game_camera_waypoint(const Game *g) {
 }
 int game_camera_animation(const Game *g) {
     return original_camera_animation(g);
+}
+int game_camera_feeds(const Game *g, int animations[3]) {
+    int room = game_camera_waypoint(g);
+    int count = 1, occupants = 0;
+    animations[0] = game_camera_animation(g);
+    for (int actor = 0; actor < 3; ++actor)
+        occupants += g->position[actor] == room;
+
+    /* The stage already uses group artwork. Other feeds can use alternate
+     * existing angles for occupants that have their own room frame. */
+    if (occupants < 2 || game_camera_view(g) == 1 || game_camera_view(g) == 6)
+        return count;
+
+    Game angle = *g;
+    for (int actor = 0; actor < 3 && count < 3; ++actor) {
+        if (g->position[actor] != room)
+            continue;
+        for (int other = 0; other < 3; ++other)
+            angle.position[other] =
+                other != actor && g->position[other] == room ? -1 : g->position[other];
+        int animation = game_camera_animation(&angle);
+        int duplicate = 0;
+        for (int i = 0; i < count; ++i)
+            duplicate |= animations[i] == animation;
+        if (!duplicate)
+            animations[count++] = animation;
+    }
+    return count;
 }
 int game_camera_variants(const Game *g, int animations[3]) {
     int view = game_camera_view(g);
@@ -229,7 +340,7 @@ static int menu_count(const Game *g) {
     if (g->phase == G_TITLE)
         return 4 + (g->save.unlocked >= 6) + (g->save.unlocked >= 7);
     if (g->phase == G_OPTIONS)
-        return 8;
+        return 9;
     if (g->phase == G_EXTRAS)
         return 8;
     if (g->phase == G_AUDIO_OPTIONS)
@@ -246,6 +357,10 @@ static void change_option(Game *g, int direction) {
     GameOptions *o = &g->save.options;
     int i = g->selection;
     if (g->phase == G_OPTIONS) {
+        if (i == OPTIONS_CONTROLS) {
+            phase(g, G_CONTROL_OPTIONS);
+            return;
+        }
         int *fields[] = {&o->display, &o->perspective, &o->vibration, &o->subtitles,
                          &o->forced,  &o->language,    &o->music,     &o->volume};
         if (i == 7) {
@@ -290,7 +405,22 @@ static void change_option(Game *g, int direction) {
         g->dirty = 1;
     }
 }
+int game_office_side(const Game *g) {
+    if (g->pan <= 56)
+        return 0;
+    if (g->pan >= OFFICE_PAN_MAX - 56)
+        return 1;
+    return -1;
+}
+int game_light_visible(const Game *g, int side) {
+    unsigned cycle = g->light_ms % 240;
+    return g->light[side] && (cycle < 120 || cycle >= 180);
+}
 void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
+    if (g->phase == G_CONTROL_OPTIONS) {
+        controls_input(g, pressed);
+        return;
+    }
     if ((pressed & IN_PAUSE) &&
         (g->phase == G_TITLE || g->phase == G_WARNING || g->phase == G_CONFIRM_NEW))
         pressed |= IN_OK;
@@ -320,6 +450,11 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         return;
     }
     if (g->phase == G_PLAY) {
+        if (pressed & (IN_PAUSE | IN_HELP)) {
+            if (g->light[0] || g->light[1])
+                game_sound(g, -1, 5, 0, 0);
+            g->light[0] = g->light[1] = 0;
+        }
         if (pressed & IN_PAUSE) {
             g->return_phase = G_PLAY;
             phase(g, G_PAUSE);
@@ -330,23 +465,11 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
             phase(g, G_HELP);
             return;
         }
-        if (pressed & IN_L) {
-            if (!g->jam[0]) {
-                g->door[0] ^= 1;
-                g->door_ms[0] = g->door_ms[0] ? sprite_reverse(g->door_ms[0], 16, 20) : 1;
-                game_sound(g, 3, 3, 0, 85);
-            } else
-                game_sound(g, 4, 3, 0, 70);
-        }
-        if (pressed & IN_R) {
-            if (!g->jam[1]) {
-                g->door[1] ^= 1;
-                g->door_ms[1] = g->door_ms[1] ? sprite_reverse(g->door_ms[1], 16, 20) : 1;
-                game_sound(g, 3, 3, 0, 85);
-            } else
-                game_sound(g, 4, 3, 0, 70);
-        }
-        if (pressed & IN_OK) {
+        unsigned monitor_keys = IN_DIRECT_MONITOR | control_input(g, CONTROL_MONITOR);
+        if (g->save.options.control_layout == CONTROL_CONTEXTUAL)
+            monitor_keys |= IN_L;
+        int flip_monitor = (pressed & monitor_keys) != 0;
+        if (flip_monitor) {
             g->monitor ^= 1;
             g->monitor_ms = g->monitor_ms ? monitor_reverse(g->monitor_ms) : 1;
             g->static_ms = 180;
@@ -355,8 +478,9 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
             if (!g->monitor)
                 g->picture = 1 + (int)visual_random(g, 100);
             if (g->monitor) {
-                g->light[0] = g->light[1] = 0;
-                game_sound(g, -1, 5, 0, 0);
+                for (int i = 0; i < 2; ++i)
+                    if (g->jam[i])
+                        g->side_attack_armed |= 1 << i;
                 if (g->golden_ms) {
                     g->golden = 0;
                     g->golden_ms = 0;
@@ -371,18 +495,30 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         g->pan_speed =
             g->monitor ? 0
                        : analog * 6 + ((held & IN_RIGHT) ? 480 : 0) - ((held & IN_LEFT) ? 480 : 0);
-        int l = !g->monitor && !g->jam[0] && (held & IN_LIGHT_L) != 0,
-            r = !g->monitor && !g->jam[1] && !l && (held & IN_LIGHT_R) != 0;
-        int was_light = g->light[0] || g->light[1];
-        for (int i = 0; i < 2; ++i) {
-            int on = i ? r : l;
-            if (on && !g->light[i] && g->position[i + 1] == 99 + i)
-                game_sound(g, 31, 4, 0, 100);
-            g->light[i] = on;
+        int side = !g->monitor && !g->monitor_ms ? game_office_side(g) : -1;
+        unsigned door_keys = IN_DIRECT_DOOR | control_input(g, CONTROL_DOOR) |
+                             control_input(g, side == 0 ? CONTROL_LEFT_DOOR : CONTROL_RIGHT_DOOR);
+        if (side >= 0 && !flip_monitor && (pressed & door_keys)) {
+            if (g->jam[side])
+                game_sound(g, 4, 3, 0, 70);
+            else if (!g->door_ms[side]) {
+                g->door[side] ^= 1;
+                g->door_ms[side] = 1;
+                game_sound(g, 3, 3, 0, 85);
+            }
         }
-        if (was_light != (l || r))
-            game_sound(g, (l || r) ? 1 : -1, 5, 1, 100);
-        if (pressed & IN_PHONE) {
+
+        int was_light = g->light[0] || g->light[1];
+        unsigned light_keys = IN_DIRECT_LIGHT | control_input(g, CONTROL_LIGHT) |
+                              control_input(g, side == 0 ? CONTROL_LEFT_LIGHT : CONTROL_RIGHT_LIGHT);
+        int lit_side = side >= 0 && !g->jam[side] && (held & light_keys) ? side : -1;
+        if (lit_side < 0 || !g->light[lit_side])
+            g->light_ms = 0;
+        g->light[0] = lit_side == 0;
+        g->light[1] = lit_side == 1;
+        if (was_light != (lit_side >= 0))
+            game_sound(g, lit_side >= 0 ? 1 : -1, 5, lit_side >= 0, lit_side >= 0 ? 100 : 0);
+        if (pressed & (IN_DIRECT_MUTE | control_input(g, CONTROL_MUTE))) {
             g->phone_muted = 1;
             game_sound(g, -1, 2, 0, 0);
         }
@@ -436,9 +572,9 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         int count = menu_count(g);
         int dir = pressed & IN_UP ? count - 1 : 1;
         if (g->phase == G_OPTIONS) {
-            const int order[] = {0, 1, 2, 5, 3, 4, 6, 7};
+            const int order[] = {0, 1, 2, 5, 3, 4, 6, OPTIONS_CONTROLS, 7};
             int position = 0;
-            for (int i = 0; i < 8; ++i)
+            for (int i = 0; i < count; ++i)
                 if (order[i] == g->selection)
                     position = i;
             g->selection = order[(position + dir) % count];
@@ -508,8 +644,9 @@ static void move_side(Game *g, int actor) {
         g->static_ms = g->monitor ? 180 : g->static_ms;
         if (next == 101 || next == 102) {
             g->jam[index] = 1;
-            g->light[index] = 0;
             g->inside_ms[index] = 0;
+            if (g->monitor)
+                g->side_attack_armed |= 1 << index;
         } else if (next == 99 || next == 100) {
             if (!g->monitor)
                 game_sound(g, 9, 4, 0, 40);
@@ -523,12 +660,13 @@ void game_tick(Game *g, unsigned ms) {
         return;
     if (g->phase == G_WARNING) {
         g->phase_ms += ms;
-        if (g->phase_ms >= 4500)
+        if (g->phase_ms >= WARNING_DURATION_MS)
             warning_done(g);
         return;
     }
     if (g->phase == G_OPTIONS || g->phase == G_EXTRAS || g->phase == G_CUSTOM ||
-        g->phase == G_TITLE || g->phase == G_CONFIRM_NEW || g->phase == G_AUDIO_OPTIONS) {
+        g->phase == G_TITLE || g->phase == G_CONFIRM_NEW || g->phase == G_AUDIO_OPTIONS ||
+        g->phase == G_CONTROL_OPTIONS) {
         g->phase_ms += ms;
         return;
     }
@@ -539,12 +677,12 @@ void game_tick(Game *g, unsigned ms) {
         return;
     }
     if (g->phase == G_NEWSPAPER) {
-        if (g->phase_ms >= 8000)
+        if (g->phase_ms >= NEWSPAPER_DURATION_MS)
             game_start(g, 1);
         return;
     }
     if (g->phase == G_INTRO) {
-        if (g->phase_ms >= 3000)
+        if (g->phase_ms >= NIGHT_INTRO_DURATION_MS)
             play(g);
         return;
     }
@@ -603,22 +741,25 @@ void game_tick(Game *g, unsigned ms) {
                 ++g->ai[i];
     }
     if (g->phase == G_OUTAGE) {
+        /* Room events 406/407, 423/424 and 433/434. Each stage also has a deadline. */
+        unsigned interval = g->outage_stage < 2 ? 5000u : 2000u;
         g->outage_roll += ms;
-        if (g->outage_stage == 0 && g->phase_ms >= 3000) {
+        if (g->phase_ms < 20000 && g->outage_roll < interval)
+            return;
+        g->outage_roll = 0;
+        if (g->phase_ms < 20000 && random_n(g, 5) != 0)
+            return;
+
+        g->phase_ms = 0;
+        if (g->outage_stage == 0) {
             g->outage_stage = 1;
-            g->phase_ms = 0;
-            g->outage_roll = 0;
             game_sound(g, 30, 0, 1, 85);
-        } else if (g->outage_stage == 1 &&
-                   ((g->outage_roll >= 5000 && random_n(g, 5) == 0) || g->phase_ms >= 20000)) {
+        } else if (g->outage_stage == 1) {
             g->outage_stage = 2;
-            g->phase_ms = g->outage_roll = 0;
             stop_all(g);
-        } else if (g->outage_stage == 2 &&
-                   ((g->outage_roll >= 2000 && random_n(g, 5) == 0) || g->phase_ms >= 20000))
+        } else {
             scare(g, SCARE_POWER_OUT);
-        if (g->outage_roll >= (g->outage_stage == 1 ? 5000u : 2000u))
-            g->outage_roll = 0;
+        }
         return;
     }
     /* APK room events 246/549: independent visual randoms, not the stable
@@ -640,13 +781,13 @@ void game_tick(Game *g, unsigned ms) {
         g->static_ms = 0;
     if (!g->monitor) {
         g->pan_fraction += g->pan_speed * (int)ms;
-        g->pan = clamp(g->pan + g->pan_fraction / 1000, 0, 320);
+        g->pan = clamp(g->pan + g->pan_fraction / 1000, 0, OFFICE_PAN_MAX);
         g->pan_fraction %= 1000;
     }
     for (int i = 0; i < 2; ++i)
         if (g->door_ms[i]) {
             g->door_ms[i] += ms;
-            if (g->door_ms[i] >= 800)
+            if (g->door_ms[i] >= DOOR_DURATION_MS)
                 g->door_ms[i] = 0;
         }
     if (g->monitor_ms) {
@@ -654,6 +795,8 @@ void game_tick(Game *g, unsigned ms) {
         if (g->monitor_ms >= MONITOR_DURATION)
             g->monitor_ms = 0;
     }
+    if (g->light[0] || g->light[1])
+        g->light_ms += ms;
     g->usage = 1 + g->door[0] + g->door[1] + g->light[0] + g->light[1] + g->monitor;
     g->drain_ms += ms;
     if (g->drain_ms >= 1000) {
@@ -687,11 +830,11 @@ void game_tick(Game *g, unsigned ms) {
         return;
     }
     for (int i = 0; i < 2; ++i)
-        if (g->jam[i]) {
-            g->inside_ms[i] += ms;
-            if (g->monitor && g->inside_ms[i] >= 30000)
-                game_input(g, IN_OK, 0, 0);
-            if (!g->monitor && g->inside_ms[i] >= 1200) {
+        if (g->side_attack_armed & (1 << i)) {
+            if (g->monitor) {
+                if ((g->inside_ms[i] += ms) >= 30000)
+                    game_input(g, IN_DIRECT_MONITOR, 0, 0);
+            } else if (!g->monitor_ms && (g->inside_ms[i] += ms) >= 1200) {
                 scare(g, i + 1);
                 return;
             }
@@ -811,6 +954,13 @@ void game_encode_save(const GameSave *s, unsigned char out[128]) {
                     s->custom[2],  s->custom[3]};
     for (int i = 0; i < 22; ++i)
         out[4 + i] = (unsigned char)values[i];
+    /* Older v2 saves left these bytes zero and ignore them when loading. */
+    if (o->control_layout != CONTROL_CONTEXTUAL ||
+        memcmp(o->control_buttons, control_presets[CONTROL_CONTEXTUAL], CONTROL_ACTION_COUNT)) {
+        out[26] = 1;
+        out[27] = (unsigned char)o->control_layout;
+        memcpy(out + 28, o->control_buttons, CONTROL_ACTION_COUNT);
+    }
     uint32_t c = crc(out, 124);
     for (int i = 0; i < 4; ++i)
         out[124 + i] = (unsigned char)(c >> (i * 8));
@@ -840,6 +990,23 @@ int game_decode_save(GameSave *s, const unsigned char in[128]) {
                      &t.custom[2],  &t.custom[3]};
     for (int i = 0; i < 22; ++i)
         *fields[i] = v[i];
+    if (in[26] == 1 && in[27] < CONTROL_LAYOUT_COUNT) {
+        unsigned used = 0;
+        int valid = 1;
+        for (int i = 0; i < CONTROL_ACTION_COUNT; ++i) {
+            unsigned button = in[28 + i];
+            if (button >= CONTROL_BUTTON_COUNT || (button && (used & (1u << button)))) {
+                valid = 0;
+                break;
+            }
+            if (button)
+                used |= 1u << button;
+        }
+        if (valid) {
+            o->control_layout = in[27];
+            memcpy(o->control_buttons, in + 28, CONTROL_ACTION_COUNT);
+        }
+    }
     *s = t;
     return 0;
 }

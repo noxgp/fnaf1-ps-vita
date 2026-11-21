@@ -4,5 +4,10 @@ enum { PERSPECTIVE_SEGMENTS = 32, PERSPECTIVE_VERTICES = (PERSPECTIVE_SEGMENTS +
 typedef struct {
     float x, y, z, u, v;
 } PerspectiveVertex;
-void perspective_mesh(PerspectiveVertex *vertices, float x, float y, float width, float height);
+static inline float office_height_scale(float x, float half_width) {
+    float offset = (x - 480.0f) / half_width;
+    return 1.0f + .22f * offset * offset;
+}
+void perspective_mesh(PerspectiveVertex *vertices, float x, float y, float width, float height,
+                      float half_width);
 #endif

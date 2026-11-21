@@ -249,6 +249,17 @@ void gpu_rectangle(int x, int y, int width, int height, uint32_t color) {
     }
     vita2d_draw_rectangle(fx, (float)y, fw, (float)height, color);
 }
+void gpu_check_badge(int x, int y) {
+    float scale = display_mode == 2 ? .75625f : 1.0f;
+    float cx = display_mode == 2 ? 117 + x * scale : (float)x;
+    vita2d_draw_fill_circle(cx, (float)y, 9 * scale, 0xffffffffu);
+    for (int t = 0; t < 2; ++t) {
+        float cy = (float)y + t;
+        vita2d_draw_line(cx - 4 * scale, cy, cx - scale, cy + 3 * scale, 0xff171717u);
+        vita2d_draw_line(cx - scale, cy + 3 * scale, cx + 5 * scale, cy - 4 * scale,
+                         0xff171717u);
+    }
+}
 void gpu_text(int x, int y, const char *value, uint32_t color) {
     int origin = x;
     while (*value) {
@@ -299,7 +310,7 @@ static void draw_sprite(int handle, float x, float y, float w, float h, unsigned
             ++errors;
             return;
         }
-        perspective_mesh(v, x, y, w, h);
+        perspective_mesh(v, x, y, w, h, display_mode == 2 ? 363.0f : 480.0f);
         if (part)
             for (int i = 0; i < PERSPECTIVE_VERTICES; ++i) {
                 v[i].u = (part->x + v[i].u * part->width) / tw;
@@ -434,6 +445,12 @@ void gpu_queue_prepare(void) {
             }
     }
     current_stats.prepare_us = (unsigned)(sceKernelGetSystemTimeWide() - t);
+}
+int gpu_queue_draw_ready(void) {
+    for (int i = 0; i < command_count; ++i)
+        if (!gpu_texture_ready(commands[i].handle))
+            return 0;
+    return 1;
 }
 void gpu_queue_draw(void) {
     uint64_t start = sceKernelGetSystemTimeWide();

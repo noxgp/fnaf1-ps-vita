@@ -67,8 +67,15 @@ int run_game_checks(void) {
     start(1);
     step(1000);
     CHECK(g.power == 998 && g.usage == 1, 11);
-    game_input(&g, IN_L | IN_R, IN_LIGHT_L, 0);
-    CHECK(g.door[0] && g.door[1] && g.light[0] && !g.light[1], 12);
+    game_input(&g, IN_R, IN_LIGHT, 0);
+    CHECK(!g.door[0] && !g.door[1] && !g.light[0] && !g.light[1], 12);
+    g.pan = 0;
+    game_input(&g, IN_R, 0, 0);
+    g.pan = OFFICE_PAN_MAX;
+    game_input(&g, IN_R, 0, 0);
+    g.pan = 0;
+    game_input(&g, 0, IN_LIGHT, 0);
+    CHECK(g.door[0] && g.door[1] && g.light[0] && !g.light[1], 185);
     step(1000);
     CHECK(g.power == 994 && g.usage == 4, 13);
     game_input(&g, IN_OK, 0, 0);
@@ -87,7 +94,8 @@ int run_game_checks(void) {
     g.position[0] = 76;
     CHECK(game_camera_animation(&g) != 17, 20);
     start(1);
-    game_input(&g, 0, IN_LIGHT_L | IN_LIGHT_R, 0);
+    g.pan = 0;
+    game_input(&g, 0, IN_LIGHT, 0);
     CHECK(g.light[0] && !g.light[1], 21);
     game_input(&g, IN_PAUSE, 0, 0);
     unsigned elapsed = g.elapsed;
@@ -105,8 +113,11 @@ int run_game_checks(void) {
     g.door[0] = 1;
     step(1000);
     CHECK(g.phase == G_OUTAGE && !g.door[0] && !g.monitor, 26);
-    step(3000);
-    CHECK(g.outage_stage == 1, 27);
+    g.rng = 5;
+    step(4980);
+    CHECK(!g.outage_stage, 27);
+    game_tick(&g, 20);
+    CHECK(g.outage_stage == 1 && !g.phase_ms && sound(30, 0, 85), 198);
     step(45000);
     CHECK(g.phase == G_DEAD || g.phase == G_TITLE || g.phase == G_CREEPY_END, 28);
     start(1);
@@ -120,9 +131,16 @@ int run_game_checks(void) {
         g.ai[actor] = 20;
         step(5000);
         CHECK(g.jam[actor - 1], 30 + actor);
-        game_input(&g, actor == 1 ? IN_L : IN_R, 0, 0);
+        g.pan = actor == 1 ? 0 : OFFICE_PAN_MAX;
+        game_input(&g, IN_R, 0, 0);
         CHECK(!g.door[actor - 1], 33 + actor);
-        step(1300);
+        step(5000);
+        CHECK(g.phase == G_PLAY, 186 + actor);
+        game_input(&g, IN_L, 0, 0);
+        CHECK(g.monitor && (g.side_attack_armed & (1 << (actor - 1))), 188 + actor);
+        step(400);
+        game_input(&g, IN_L, 0, 0);
+        step(1500);
         CHECK(g.phase == G_SCARE && g.killer == actor, 36 + actor);
         step(1800);
         CHECK(g.phase == G_DEAD, 39 + actor);
@@ -181,16 +199,36 @@ int run_game_checks(void) {
     start(1);
     game_input(&g, IN_PHONE, 0, 0);
     CHECK(g.phone_muted, 52);
+    static const unsigned hour_ends[] = {90000, 179000, 268000, 357000, 446000, 535000};
+    static const unsigned move_intervals[] = {3020, 4970, 4980, 5010};
     for (int night = 1; night <= 7; ++night) {
         start(night);
-        for (unsigned i = 0; i < 26750; ++i) {
-            g.power = 1000;
-            for (int a = 0; a < 4; ++a)
-                g.ai[a] = 0;
-            game_tick(&g, 20);
-            g.sound_count = 0;
+        /* Isolate the clock and AI from power loss while leaving the AI active. */
+        g.door[0] = g.door[1] = 1;
+        int baseline_ai[4];
+        memcpy(baseline_ai, g.ai, sizeof(baseline_ai));
+        unsigned elapsed = 0;
+        for (int hour = 1; hour <= 6; ++hour) {
+            for (; elapsed < hour_ends[hour - 1]; elapsed += 20) {
+                g.power = 1000;
+                game_tick(&g, 20);
+                g.sound_count = 0;
+            }
+            CHECK(g.elapsed == elapsed && g.hour == hour, 200 + hour);
+            int shared_boost = (hour >= 3) + (hour >= 4);
+            CHECK(g.ai[0] == baseline_ai[0] &&
+                      g.ai[1] == baseline_ai[1] + (hour >= 2) + shared_boost &&
+                      g.ai[2] == baseline_ai[2] + shared_boost &&
+                      g.ai[3] == baseline_ai[3] + shared_boost,
+                  207);
+            for (int actor = 0; actor < 4; ++actor)
+                CHECK(g.move_ms[actor] == (elapsed - (hour == 6 ? 20 : 0)) % move_intervals[actor],
+                      208 + actor);
         }
         CHECK(g.phase == G_WIN && g.hour == 6, 53 + night);
+        if (night == 6)
+            CHECK(g.position[0] != 75 && g.position[1] != 75 && g.position[2] != 75 && g.fox_hits,
+                  212);
         if (night == 5)
             CHECK(g.save.stars == 1 && g.save.unlocked == 6, 61);
         if (night == 6)
@@ -283,7 +321,7 @@ int run_game_checks(void) {
     game_defaults(&s);
     game_init(&g, &s, 123);
     CHECK(g.phase == G_WARNING && !g.sound_count, 80);
-    step(4480);
+    step(WARNING_DURATION_MS - 20);
     CHECK(g.phase == G_WARNING, 81);
     step(20);
     CHECK(g.phase == G_TITLE, 82);
@@ -344,7 +382,7 @@ int run_game_checks(void) {
     step(1000);
     CHECK(g.pan == 0, 99);
     PerspectiveVertex mesh[PERSPECTIVE_VERTICES];
-    perspective_mesh(mesh, -120, 2, 1200, 540);
+    perspective_mesh(mesh, -120, 2, 1200, 540, 480);
     CHECK(mesh[0].x == -120 && mesh[PERSPECTIVE_VERTICES - 1].x == 1080 && mesh[0].u == 0 &&
               mesh[PERSPECTIVE_VERTICES - 1].u == 1,
           100);
@@ -352,7 +390,7 @@ int run_game_checks(void) {
         CHECK(mesh[i].x == mesh[i + 1].x && mesh[i].y < mesh[i + 1].y && mesh[i].v == 0 &&
                   mesh[i + 1].v == 1,
               101);
-        CHECK(mesh[i].y >= 2 && mesh[i + 1].y <= 542, 102);
+        CHECK(mesh[i].y <= 2 && mesh[i + 1].y >= 542, 102);
         if (i)
             CHECK(mesh[i].x > mesh[i - 2].x, 103);
     }
@@ -542,18 +580,38 @@ int run_game_checks(void) {
     scare_texture_size(388, &sw, &sh);
     CHECK(sw == 640 && sh == 360, 165);
     start(1);
-    game_input(&g, IN_LIGHT_L, IN_LIGHT_L, 0);
+    g.phase = G_OUTAGE;
+    g.power = 0;
+    g.rng = 1;
+    step(5000);
+    CHECK(!g.outage_stage && !g.outage_roll, 213);
+    g.phase_ms = 19980;
+    game_tick(&g, 20);
+    CHECK(g.outage_stage == 1 && !g.phase_ms && sound(30, 0, 85), 214);
+    start(1);
+    g.pan = 0;
+    game_input(&g, 0, IN_LIGHT, 0);
     CHECK(g.light[0] && g.sound_count == 1 && sound(1, 5, 100), 166);
     g.sound_count = 0;
-    game_input(&g, 0, IN_LIGHT_L, 0);
+    game_input(&g, 0, IN_LIGHT, 0);
     CHECK(!g.sound_count, 167);
     game_input(&g, 0, 0, 0);
-    CHECK(!g.light[0] && g.sound_count == 1 && sound(-1, 5, 100), 168);
+    CHECK(!g.light[0] && g.sound_count == 1 && sound(-1, 5, 0), 168);
     g.sound_count = 0;
-    game_input(&g, IN_LIGHT_R, IN_LIGHT_R, 0);
+    g.pan = OFFICE_PAN_MAX;
+    game_input(&g, 0, IN_LIGHT, 0);
     CHECK(g.light[1] && g.sound_count == 1 && sound(1, 5, 100), 169);
+    step(100);
+    CHECK(game_light_visible(&g, 1), 196);
+    step(20);
+    CHECK(g.light[1] && !game_light_visible(&g, 1), 191);
+    step(60);
+    CHECK(game_light_visible(&g, 1), 192);
+    step(180);
+    CHECK(!game_light_visible(&g, 1), 197);
     g.sound_count = 0;
-    game_input(&g, 0, IN_LIGHT_L, 0);
+    g.pan = 0;
+    game_input(&g, 0, IN_LIGHT, 0);
     CHECK(g.light[0] && !g.light[1] && !g.sound_count, 170);
     g.sound_count = 0;
     game_input(&g, IN_OK, 0, 0);
@@ -588,16 +646,87 @@ int run_game_checks(void) {
     start(1);
     game_select_camera(&g, 10);
     CHECK(g.static_ms == 90, 180);
-    game_input(&g, IN_L, 0, 0);
+    g.pan = 0;
+    game_input(&g, IN_R, 0, 0);
     step(200);
-    game_input(&g, IN_L, 0, 0);
-    CHECK(!g.door[0] && g.door_ms[0] == 551, 181);
+    game_input(&g, IN_R, 0, 0);
+    CHECK(g.door[0] && g.door_ms[0] == 201, 181);
     SpriteTween d = sprite_tween(226, 16, 20);
     CHECK(d.frame == 4 && d.next == 5 && d.fraction > .49f && d.fraction < .51f, 182);
+    g.pan = OFFICE_PAN_MAX;
     game_input(&g, IN_R, 0, 0);
-    step(780);
+    game_input(&g, IN_L, 0, 0);
+    game_input(&g, IN_R, IN_LIGHT, 0);
+    CHECK(g.monitor && g.door[1] && !g.light[1], 193);
+    step(DOOR_DURATION_MS - 20);
     CHECK(g.door_ms[1] != 0, 183);
     step(20);
     CHECK(!g.door_ms[1], 184);
+    game_input(&g, IN_R, IN_LIGHT, 0);
+    CHECK(g.door[1] && !g.light[1], 194);
+    int feeds[3];
+    start(5);
+    g.camera = 1;
+    g.position[1] = g.position[2] = 76;
+    g.branch[0] = g.branch[1] = 1;
+    CHECK(game_camera_feeds(&g, feeds) == 2 && feeds[0] == 40 && feeds[1] == 28, 195);
+
+    game_defaults(&s);
+    game_encode_save(&s, bytes);
+    CHECK(!bytes[26] && !bytes[27] && !game_decode_save(&t, bytes) &&
+              t.options.control_layout == CONTROL_CONTEXTUAL &&
+              game_control_binding(&t.options, CONTROL_DOOR) == BUTTON_R,
+          215);
+    start(1);
+    g.phase = G_OPTIONS;
+    g.selection = OPTIONS_CONTROLS;
+    game_input(&g, IN_OK, 0, 0);
+    CHECK(g.phase == G_CONTROL_OPTIONS && !g.selection, 216);
+    game_input(&g, IN_RIGHT, 0, 0);
+    CHECK(g.save.options.control_layout == CONTROL_CLASSIC, 217);
+    game_input(&g, IN_BACK, 0, 0);
+    CHECK(g.phase == G_OPTIONS && g.selection == OPTIONS_CONTROLS, 218);
+    game_start(&g, 1);
+    game_input(&g, IN_OK, 0, 0);
+    g.pan = 0;
+    game_input(&g, IN_R, IN_BACK, 0);
+    CHECK(!g.monitor && !g.door[0] && !g.door[1] && !g.light[0] && !g.light[1], 219);
+    game_input(&g, IN_L, IN_LIGHT, 0);
+    CHECK(!g.monitor && g.door[0] && g.light[0], 220);
+    g.pan = OFFICE_PAN_MAX;
+    game_input(&g, IN_R, IN_BACK, 0);
+    CHECK(!g.monitor && g.door[1] && g.light[1] && !g.light[0], 221);
+    game_input(&g, IN_OK, IN_BACK, 0);
+    CHECK(g.monitor && !g.light[1], 222);
+
+    g.phase = G_CONTROL_OPTIONS;
+    g.selection = 0;
+    game_input(&g, IN_RIGHT, 0, 0);
+    CHECK(g.save.options.control_layout == CONTROL_CUSTOM, 223);
+    g.selection = CONTROLS_FIRST_ACTION + CONTROL_MONITOR;
+    game_input(&g, IN_OK, 0, 0);
+    game_input(&g, IN_R, 0, 0);
+    CHECK(!g.binding_capture && game_control_binding(&g.save.options, CONTROL_MONITOR) == BUTTON_R &&
+              game_control_binding(&g.save.options, CONTROL_DOOR) == BUTTON_CROSS,
+          224);
+    g.selection = CONTROLS_FIRST_ACTION + CONTROL_MUTE;
+    game_input(&g, IN_OK, 0, 0);
+    game_input(&g, IN_HELP, 0, 0);
+    CHECK(!g.binding_capture && game_control_binding(&g.save.options, CONTROL_MUTE) == BUTTON_TRIANGLE,
+          225);
+    g.save.next_night = g.save.unlocked = 4;
+    game_encode_save(&g.save, bytes);
+    CHECK(!game_decode_save(&t, bytes) && t.next_night == 4 &&
+              t.options.control_layout == CONTROL_CUSTOM &&
+              game_control_binding(&t.options, CONTROL_MONITOR) == BUTTON_R &&
+              game_control_binding(&t.options, CONTROL_DOOR) == BUTTON_CROSS,
+          226);
+    game_start(&g, 4);
+    game_input(&g, IN_OK, 0, 0);
+    g.pan = 0;
+    game_input(&g, IN_OK, 0, 0);
+    CHECK(g.door[0] && !g.monitor, 227);
+    game_input(&g, IN_R, 0, 0);
+    CHECK(g.monitor, 228);
     return 0;
 }

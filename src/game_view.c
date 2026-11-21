@@ -8,6 +8,7 @@
 #include "game_events.h"
 #include "generated_controls.h"
 #include "monitor_animation.h"
+#include "perspective_mesh.h"
 #include "camera_noise.h"
 #include <stdio.h>
 #include <string.h>
@@ -127,11 +128,10 @@ int game_view_loading(const Game *g) {
     if (g->phase == G_CREEPY_END)
         return !gpu_texture_ready(548);
     if (g->phase == G_PLAY) {
+        if (!g->elapsed && !gpu_texture_ready(591))
+            return 1;
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             if (!gpu_texture_ready(control_textures[i]))
-                return 1;
-        for (unsigned i = 0; i < sizeof(camera_noise_images) / sizeof(*camera_noise_images); ++i)
-            if (!gpu_texture_ready(camera_noise_images[i]))
                 return 1;
     }
     if (g->phase == G_OUTAGE && g->outage_stage < 2)
@@ -255,15 +255,17 @@ static void room(const Game *g) {
     art(51, 0, 0, 0, 0, pan, 1, p);
     art(59, 0, (int)(clock_time / 55), 0, 0, pan, 1, p);
     for (int side = 0; side < 2; ++side) {
-        if (g->light[side])
+        int lit = game_light_visible(g, side);
+        if (lit)
             art(134, side ? (g->position[2] == 100 ? 15 : 13) : (g->position[1] == 99 ? 14 : 12), 0,
                 0, 0, pan, 1, p);
         int anim = g->door_ms[side] ? (g->door[side] ? 12 : 14) : (g->door[side] ? 13 : 0);
         if (g->door_ms[side])
-            art_animation(60 + side, anim, g->door_ms[side], 20, side ? 1270 : 72, -1, pan, p, 0);
+            art_animation(60 + side, anim, g->door_ms[side], DOOR_FPS, side ? 1270 : 72,
+                          -1, pan, p, 0);
         else
             art(60 + side, anim, 0, side ? 1270 : 72, -1, pan, 1, p);
-        int button = g->door[side] ? (g->light[side] ? 14 : 12) : (g->light[side] ? 13 : 0);
+        int button = g->door[side] ? (lit ? 14 : 12) : (lit ? 13 : 0);
         art(side ? 66 : 62, button, 0, side ? 1546 : 48, side ? 400 : 390, pan, 1, p);
     }
     plushies(g, 0);
@@ -293,24 +295,50 @@ static void outage_room(const Game *g, unsigned ms) {
             const ImageDef *im = scene_image(591);
             gpu_queue_resident(591);
             if (im)
-                image(591, -g->pan * .75f, 2, im->width * .75f, im->height * .75f, 0xff302018u, 0);
+                image(591, -g->pan * .75f, 2, im->width * .75f, im->height * .75f, 0xff302018u,
+                      g->save.options.perspective);
             return;
         }
     }
-    art(51, anim, 0, 0, 0, g->pan, 1, 0);
+    art(51, anim, 0, 0, 0, g->pan, 1, g->save.options.perspective);
     plushies(g, 1);
     if (g->halloween) {
-        art(125, 12, 0, 0, 0, g->pan, 1, 0);
-        art(131, 12, 0, 1599, 0, g->pan, 1, 0);
-        art(126, 12, 0, 734, 485, g->pan, 1, 0);
+        art(125, 12, 0, 0, 0, g->pan, 1, g->save.options.perspective);
+        art(131, 12, 0, 1599, 0, g->pan, 1, g->save.options.perspective);
+        art(126, 12, 0, 734, 485, g->pan, 1, g->save.options.perspective);
     }
 }
-void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
+static const int radar_portraits[] = {527, 528, 529, 536};
+static void radar_map(const Game *g) {
+    const int positions[] = {g->position[0], g->position[1], g->position[2],
+                             g->fox < 4 ? 85 : 77};
+    for (int c = 0; c < 11; ++c) {
+        int markers[4], count = 0;
+        for (int actor = 0; actor < 4; ++actor)
+            if (positions[actor] == camera_map[c].object)
+                markers[count++] = radar_portraits[actor];
+        float x = camera_map[c].x * .75f - count * 8;
+        float y = camera_map[c].y * .75f - 28;
+        for (int i = 0; i < count; ++i)
+            image(markers[i], x + i * 16, y, 14, 14, 0xffffffffu, 0);
+    }
+}
+static int night_card_loading;
+void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int preparing_night) {
     clock_time = ms;
+    night_card_loading = preparing_night;
     gpu_queue_reset(g->save.options.display);
     int phase = g->phase;
-    if (phase == G_PLAY || phase == G_INTRO || phase == G_PAUSE || phase == G_HELP ||
+    if (phase == G_TITLE) {
+        gpu_queue_warm(591);
+        for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
+            gpu_queue_warm(control_textures[i]);
+    }
+    if (phase == G_PLAY || phase == G_NEWSPAPER || phase == G_INTRO ||
+        phase == G_PAUSE || phase == G_HELP ||
         ((phase == G_OPTIONS || phase == G_AUDIO_OPTIONS) && g->options_parent == G_PAUSE)) {
+        if (preparing_night || phase == G_NEWSPAPER || phase == G_INTRO)
+            gpu_queue_resident(591);
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             gpu_queue_resident(control_textures[i]);
         if (g->return_phase != G_OUTAGE)
@@ -318,17 +346,24 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
                  ++i)
                 gpu_queue_resident(camera_noise_images[i]);
     }
-    if (phase == G_INTRO || (phase == G_PLAY && !g->monitor))
+    if (phase == G_INTRO || (phase == G_PLAY && !g->monitor)) {
         warm_scares(g);
+        if (g->save.options.radar)
+            for (int i = 0; i < 4; ++i)
+                gpu_queue_warm(radar_portraits[i]);
+    }
     if (phase == G_NEWSPAPER || phase == G_INTRO || (phase == G_PLAY && !gpu_texture_ready(591)))
         warm_night(g);
-    if (android_menu_phase(phase))
+    if (preparing_night)
+        android_menu_night_card(g->night);
+    else if (android_menu_phase(phase))
         android_menu_prepare(g, ms);
     else if (phase == G_NEWSPAPER) {
         screen(574, 0xffffffffu);
         forced(g, "/13-ad", (g->phase_ms / 1000) % 8);
         unsigned alpha = g->phase_ms < 600    ? 255 - g->phase_ms * 255 / 600
-                         : g->phase_ms > 7400 ? (g->phase_ms - 7400) * 255 / 600
+                         : g->phase_ms > NEWSPAPER_DURATION_MS - 600
+                             ? (g->phase_ms - (NEWSPAPER_DURATION_MS - 600)) * 255 / 600
                                               : 0;
         if (alpha > 255)
             alpha = 255;
@@ -340,7 +375,9 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
             outage_room(g, ms);
         else {
             if (g->monitor && !g->monitor_ms) {
-                int a = game_camera_animation(g);
+                int feeds[3], feed_count = game_camera_feeds(g, feeds);
+                unsigned feed_ms = g->elapsed - g->camera_selected_ms;
+                int a = feeds[(feed_ms / 1100) % (unsigned)feed_count];
                 int variants[3], variant_count = game_camera_variants(g, variants);
                 if (game_camera_view(g) != 6)
                     for (int v = 0; v < variant_count; ++v) {
@@ -354,7 +391,13 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
                     gpu_queue_focus(background);
                     if (gpu_texture_ready(background))
                         displayed = background;
-                    else
+                    for (int i = 0; feed_count > 1 && i < feed_count; ++i) {
+                        int handle = scene_art(51, feeds[i], 0);
+                        gpu_queue_resident(handle);
+                        if (displayed < 0 && gpu_texture_ready(handle))
+                            displayed = handle;
+                    }
+                    if (displayed < 0)
                         for (int v = 0; v < variant_count && displayed < 0; ++v) {
                             int handle = scene_art(51, variants[v], 0);
                             if (gpu_texture_ready(handle))
@@ -365,7 +408,7 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
                         if (im)
                             image(displayed, (-game_camera_pan(g) - im->hotspot_x) * .75f,
                                   2 - im->hotspot_y * .75f, im->width * .75f, im->height * .75f,
-                                  0xffffffffu, 0);
+                                  0xffffffffu, g->save.options.perspective);
                     }
                 }
                 camera_noise(ms, game_camera_view(g) != 6 && displayed < 0 ? 0xffffffffu
@@ -414,6 +457,8 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms) {
                     forced(g, "68", 0);
                 if (a == 73)
                     forced(g, "73", 0);
+                if (g->save.options.radar)
+                    radar_map(g);
             } else
                 room(g);
             if (g->monitor_ms)
@@ -504,10 +549,20 @@ static void text(int x, int y, const char *s) {
 }
 void game_view_draw(const Game *g, unsigned fps, int save_error) {
     gpu_queue_draw();
+    if (night_card_loading) {
+        const char *status[] = {"Preparing", "Preparing.", "Preparing..", "Preparing..."};
+        text(810, 506, status[(clock_time / 360) % 4]);
+        return;
+    }
     char s[96];
-    GameOptions const *o = &g->save.options;
     int p = g->phase;
     if (android_menu_phase(p)) {
+        if (p == G_TITLE || p == G_CONFIRM_NEW)
+            text(286, 495, "Update 2");
+        if (p == G_EXTRAS)
+            android_menu_draw_extras_status(g);
+        if (p == G_OPTIONS || p == G_CONTROL_OPTIONS)
+            android_menu_draw_controls(g);
         if (g->diagnostics) {
             GpuStats st;
             gpu_get_stats(&st);
@@ -528,31 +583,22 @@ void game_view_draw(const Game *g, unsigned fps, int save_error) {
         for (int i = 0; i < 4; ++i)
             text(105, 200 + i * 48, items[i]);
     } else if (p == G_HELP) {
-        const char *help[] = {"L / R: Left / right door",
-                              "Hold Square: Left light",
-                              "Hold Circle: Right light",
-                              "Cross: Raise / lower monitor",
-                              "D-pad: Camera direction / office left-right",
+        const GameOptions *o = &g->save.options;
+        int row = 58;
+        for (int i = 0; i < CONTROL_ACTION_COUNT; ++i)
+            if (game_control_binding(o, i) != BUTTON_NONE) {
+                snprintf(s, sizeof(s), "%s: %s", game_control_action_name(i),
+                         game_control_button_name(o, i));
+                text(65, row, s);
+                row += 32;
+            }
+        const char *help[] = {"D-pad: Camera direction / office left-right",
                               "Left stick: Look around office",
-                              "Triangle: Mute phone call",
                               "Start: Pause    Select: Help",
-                              "Touch: Doors, lights, monitor, camera map",
-                              "Assists disable night progression."};
-        for (int i = 0; i < 10; ++i)
-            text(65, 65 + i * 39, help[i]);
-    } else if (p == G_PLAY && g->monitor && o->radar) {
-        const char *shortnames[] = {"F", "B", "C"};
-        for (int a = 0; a < 3; ++a)
-            for (int c = 0; c < 11; ++c)
-                if (g->position[a] == camera_map[c].object)
-                    text(camera_map[c].x * 3 / 4 + a * 9, camera_map[c].y * 3 / 4 - 12,
-                         shortnames[a]);
-        snprintf(s, sizeof(s), "Foxy: %d", g->fox);
-        text(650, 190, s);
-    }
-    if (p == G_PLAY && game_view_loading(g)) {
-        gpu_rectangle(0, 2, 960, 540, 0xff000000u);
-        text(380, 260, "Loading night...");
+                              "Touch: Hold the screen edges to look",
+                              "Tap the panels, monitor bar or camera map"};
+        for (int i = 0; i < 5; ++i)
+            text(65, row + 20 + i * 32, help[i]);
     }
     if (g->diagnostics && p != G_SCARE) {
         GpuStats st;
@@ -579,33 +625,48 @@ int game_touch(Game *g, int x, int y, int initial) {
     if (g->phase == G_PLAY) {
         if (initial && x >= 20 && x < 112 && y >= 18 && y < 44 && !g->phone_muted &&
             g->night <= 5 && g->phone_ms < 180000) {
-            game_input(g, IN_PHONE, 0, 0);
+            game_input(g, IN_DIRECT_MUTE, 0, 0);
             return 0;
         }
         if (x >= 180 && x < 654 && y >= 480 && y < 542) {
             if (initial)
-                game_input(g, IN_OK, 0, 0);
+                game_input(g, IN_DIRECT_MONITOR, 0, 0);
             return 0;
         }
+        if (g->monitor_ms)
+            return 0;
         if (g->monitor) {
             game_select_camera(g, camera_map_hit(x, y));
-        } else if (x < 85 || x > 875) {
-            int side = x > 875;
-            if (y >= 220 && y < 260 && initial)
-                game_input(g, side ? IN_R : IN_L, 0, 0);
-            else if (y >= 260 && y < 325)
-                return side ? IN_LIGHT_R : IN_LIGHT_L;
-        } else if (initial) {
-            float world_x = x / 0.75f + g->pan, world_y = (y - 2) / 0.75f;
-            if (g->save.options.perspective) {
-                float offset = (x - 480) / 480.0f, height = 540 * (1 - .055f * offset * offset),
-                      top = 2 + (540 - height) * .5f;
-                world_y = (y - top) * 720 / height;
-            }
-            /* APK honk.Active (117): anchor (678,240), 16x16 scaled to 50x50. */
-            if (world_x >= 653 && world_x < 703 && world_y >= 215 && world_y < 265)
-                game_sound(g, 36, 7, 0, 100);
+            return 0;
         }
+
+        float world_x = x / .75f + g->pan, view_y = (float)y;
+        if (g->save.options.perspective)
+            view_y = 272 + (view_y - 272) / office_height_scale((float)x, 480.0f);
+        float world_y = (view_y - 2) / .75f;
+        int side = game_office_side(g);
+        if (side >= 0) {
+            const ImageDef *panel = scene_image(scene_art(side ? 66 : 62, 0, 0));
+            if (panel) {
+                float left = (side ? 1546 : 48) - panel->hotspot_x;
+                float top = (side ? 400 : 390) - panel->hotspot_y;
+                if (world_x >= left - 12 && world_x < left + panel->width + 12 &&
+                    world_y >= top - 8 && world_y < top + panel->height + 8) {
+                    if (world_y >= top + panel->height * .5f)
+                        return IN_DIRECT_LIGHT;
+                    if (initial)
+                        game_input(g, IN_DIRECT_DOOR, 0, 0);
+                    return 0;
+                }
+            }
+        }
+        /* APK honk.Active (117): anchor (678,240), 16x16 scaled to 50x50. */
+        if (initial && world_x >= 653 && world_x < 703 && world_y >= 215 && world_y < 265)
+            game_sound(g, 36, 7, 0, 100);
+        if (x < 120)
+            return IN_LEFT;
+        if (x > 840)
+            return IN_RIGHT;
         return 0;
     }
     if (!initial)

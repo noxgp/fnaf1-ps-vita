@@ -25,8 +25,11 @@ static Voice voices[AUDIO_VOICES];
 static Command queue[128];
 static AudioCache bank;
 static atomic_uint head, tail, positions[AUDIO_VOICES];
-static atomic_int running, paused, master, music_enabled, errors, ready;
-static SceUID thread = -1;
+static atomic_int running, paused, master, music_enabled, errors, ready, title_ready;
+static SceUID thread = -1, loader = -1;
+static int title_asset(int id) {
+    return id == 11 || id == 34 || id == 35;
+}
 static void close_voice(Voice *v) {
     if (v->active && v->vorbis)
         ov_clear(&v->ogg);
@@ -37,7 +40,9 @@ static int open_voice(Voice *v, Command c) {
     atomic_store(&positions[c.channel], 0);
     if (c.id < 0)
         return 0;
-    if (c.id >= AUDIO_ASSETS || !bank.sample[c.id].data)
+    if (c.id >= AUDIO_ASSETS ||
+        (!title_asset(c.id) && !atomic_load_explicit(&ready, memory_order_acquire)) ||
+        !bank.sample[c.id].data)
         return -1;
     v->sample = &bank.sample[c.id];
     v->id = c.id;
@@ -132,25 +137,53 @@ static void audio_step(int16_t out[2048]) {
 void game_audio_test_step(int16_t out[2048]) {
     audio_step(out);
 }
-int game_audio_test_prepare(const AudioAsset *assets, unsigned count) {
+int game_audio_test_prepare(const AudioAsset *assets, unsigned count, int complete) {
     int result = audio_cache_load(&bank, assets, count);
-    atomic_store(&ready, 1);
+    atomic_store(&title_ready, 1);
+    atomic_store(&ready, complete);
     return result;
 }
 #endif
+static void load_bank(int title_only) {
+    unsigned before = bank.errors;
+    for (unsigned i = 0; i < sizeof(audio_assets) / sizeof(*audio_assets); ++i) {
+        if (!atomic_load(&running))
+            break;
+        if (title_asset(audio_assets[i].id) == title_only)
+            (void)audio_cache_load(&bank, &audio_assets[i], 1);
+    }
+    atomic_fetch_add(&errors, (int)(bank.errors - before));
+}
+static int load_gameplay(SceSize n, void *p) {
+    (void)n;
+    (void)p;
+    load_bank(0);
+    atomic_store_explicit(&ready, 1, memory_order_release);
+    return 0;
+}
 static int worker(SceSize n, void *p) {
     (void)n;
     (void)p;
-    (void)audio_cache_load(&bank, audio_assets, sizeof(audio_assets) / sizeof(*audio_assets));
-    atomic_fetch_add(&errors, (int)bank.errors);
+    load_bank(1);
+    if (!atomic_load(&running))
+        return 0;
     int port =
         sceAudioOutOpenPort(SCE_AUDIO_OUT_PORT_TYPE_BGM, 1024, 44100, SCE_AUDIO_OUT_MODE_STEREO);
     if (port < 0) {
         atomic_fetch_add(&errors, 1);
+        atomic_store(&title_ready, 1);
         atomic_store(&ready, 1);
         return 0;
     }
-    atomic_store_explicit(&ready, 1, memory_order_release);
+    loader = sceKernelCreateThread("FnafAudioPreload", load_gameplay, 0x10000120, 64 * 1024, 0,
+                                   SCE_KERNEL_CPU_MASK_USER_2, NULL);
+    if (loader < 0 || sceKernelStartThread(loader, 0, NULL) < 0) {
+        if (loader >= 0)
+            sceKernelDeleteThread(loader);
+        loader = -1;
+        load_gameplay(0, NULL);
+    }
+    atomic_store_explicit(&title_ready, 1, memory_order_release);
     int16_t out[2048];
     while (atomic_load(&running)) {
         audio_step(out);
@@ -169,6 +202,7 @@ int game_audio_start(void) {
     if (thread >= 0)
         return 0;
     atomic_store(&ready, 0);
+    atomic_store(&title_ready, 0);
     atomic_store(&master, 80);
     atomic_store(&music_enabled, 1);
     atomic_store(&running, 1);
@@ -183,6 +217,7 @@ int game_audio_start(void) {
     thread = -1;
     atomic_store(&running, 0);
     atomic_fetch_add(&errors, 1);
+    atomic_store(&title_ready, 1);
     atomic_store(&ready, 1);
     return -1;
 }
@@ -193,9 +228,15 @@ void game_audio_stop(void) {
         sceKernelDeleteThread(thread);
         thread = -1;
     }
+    if (loader >= 0) {
+        sceKernelWaitThreadEnd(loader, NULL, NULL);
+        sceKernelDeleteThread(loader);
+        loader = -1;
+    }
     for (int i = 0; i < AUDIO_VOICES; ++i)
         close_voice(&voices[i]);
     audio_cache_clear(&bank);
+    atomic_store(&title_ready, 0);
     atomic_store(&ready, 0);
 }
 void game_audio_play(int id, int channel, int loop, int volume) {
@@ -223,4 +264,7 @@ int game_audio_errors(void) {
 
 int game_audio_ready(void) {
     return atomic_load_explicit(&ready, memory_order_acquire);
+}
+int game_audio_title_ready(void) {
+    return atomic_load_explicit(&title_ready, memory_order_acquire);
 }

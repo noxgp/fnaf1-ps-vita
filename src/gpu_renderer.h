@@ -10,6 +10,7 @@ void gpu_begin(void);
 void gpu_draw_scene(void);
 void gpu_text(int x, int y, const char *value, uint32_t color);
 void gpu_rectangle(int x, int y, int width, int height, uint32_t color);
+void gpu_check_badge(int x, int y);
 void gpu_end(void);
 unsigned gpu_asset_errors(void);
 typedef struct {
@@ -27,5 +28,6 @@ void gpu_queue_resident(int handle);
 void gpu_queue_focus(int handle);
 void gpu_queue_warm(int handle);
 void gpu_queue_prepare(void);
+int gpu_queue_draw_ready(void);
 void gpu_queue_draw(void);
 #endif

@@ -107,10 +107,15 @@ int run_event_checks(void) {
     game_events_tick(&g, 20);
     CHECK(sound(21, A_PIRATE), 21);
     fresh(1);
-    g.event_rng = 10;
+    g.event_rng = 17;
     g.event_five_ms = 4980;
     game_events_tick(&g, 20);
-    CHECK(sound(29, A_CREEK), 22);
+    CHECK(sound(29, A_CREEK) && g.ambience_cooldown_ms == 60000, 22);
+    g.sound_count = 0;
+    g.event_rng = 17;
+    g.event_five_ms = 4980;
+    game_events_tick(&g, 20);
+    CHECK(!sound(29, A_CREEK), 34);
     fresh(1);
     g.event_rng = 36;
     g.event_ten_ms = 9980;

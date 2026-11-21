@@ -1,7 +1,11 @@
-param([string]$SdkPath = '')
+param(
+    [string]$SdkPath = '',
+    [string]$LauncherVpk = ''
+)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 if (-not $SdkPath) { $SdkPath = Join-Path $projectRoot '.tools/vitasdk' }
+if ($LauncherVpk) { $LauncherVpk = (Resolve-Path -LiteralPath $LauncherVpk).Path }
 $sdkBin = Join-Path ([IO.Path]::GetFullPath($SdkPath)) 'bin'
 $env:PATH = $sdkBin + ';' + $env:PATH
 New-Item -ItemType Directory -Force -Path (Join-Path $projectRoot 'build/scene') | Out-Null
@@ -58,8 +62,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Vita ELF conversion failed' }
     & (Join-Path $sdkBin 'vita-make-fself.exe') -s build/scene/app.velf build/scene/eboot.bin
     if ($LASTEXITCODE -ne 0) { throw 'SELF creation failed' }
-    & (Join-Path $sdkBin 'vita-mksfoex.exe') -s TITLE_ID=FNAFSCN01 -s APP_VER=00.17 "FNAF 1 Vita (nox)" build/scene/param.sfo
+    & (Join-Path $sdkBin 'vita-mksfoex.exe') -s TITLE_ID=FNAFSCN01 -s APP_VER=00.23 "Five Nights At Freddy's" build/scene/param.sfo
     if ($LASTEXITCODE -ne 0) { throw 'SFO creation failed' }
-    python scripts/package_public.py
+    $packageArgs = @()
+    if ($LauncherVpk) { $packageArgs += '--launcher-vpk', $LauncherVpk }
+    python scripts/package_public.py @packageArgs
     if ($LASTEXITCODE -ne 0) { throw 'Scene VPK packaging failed' }
 } finally { Pop-Location }
