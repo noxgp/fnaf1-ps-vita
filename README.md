@@ -66,7 +66,7 @@ Merge it into `ux0:data/fnaf1/`, then install the new VPK.
 
 ## Known limitations
 
-- **Beta.** The 00.17 build has passed the local tests and full data preparation. See [testing](docs/TESTING.md).
+- **Beta.** The 00.17 build passed local validation and was tested on a physical PS Vita. See [testing](docs/TESTING.md) for the reported result.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**

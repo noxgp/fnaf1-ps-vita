@@ -7,6 +7,12 @@ Local validation for v0.1.0-beta.1 / APP_VER 00.17:
 - Public VPK checked by an exact archive allowlist: executable, SFO, original text-only launcher and dependency notices. No game media archive members.
 - Existing gameplay performance optimizations are retained. Native caption dimensions follow the loaded external texture so local font differences do not invalidate packed offsets.
 
-Before publishing the draft release or submitting to VitaDB, install the public VPK with the prepared external UI on a physical Vita. Check startup, all menus, music, every camera, both lights/doors, plushies after closing cameras, subtitles in several languages including CJK, save/restart, outage/eyes/attack and one full normal night. Check that the old save survives. Also test missing-data startup: it must show preparation instructions instead of hanging.
+## Hardware validation
 
-The public resource-layout build has no hardware result recorded yet. Record the device/firmware, storage type and observed errors/FPS here after the check. Do not claim 60 FPS or 1:1 Android parity from CPU emulation.
+The maintainer tested the public 00.17 build on a physical PS Vita and reported that it worked as expected. The device model, firmware, storage type, per-check results and FPS were not recorded.
+
+## Checklist for future releases
+
+Install the public VPK with the prepared external UI on a physical Vita before publication. Check startup, all menus, music, every camera, both lights/doors, plushies after closing cameras, subtitles in several languages including CJK, save/restart, outage/eyes/attack and one full normal night. Check that the old save survives. Also test missing-data startup: it must show preparation instructions instead of hanging.
+
+Record the device model, firmware, storage type and any observed errors. Record FPS only if measured on the Vita.
