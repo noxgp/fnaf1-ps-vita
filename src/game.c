@@ -194,9 +194,10 @@ int game_camera_feeds(const Game *g, int animations[3]) {
     for (int actor = 0; actor < 3; ++actor)
         occupants += g->position[actor] == room;
 
-    /* The stage already uses group artwork. Other feeds can use alternate
-     * existing angles for occupants that have their own room frame. */
-    if (occupants < 2 || game_camera_view(g) == 1 || game_camera_view(g) == 6)
+    int view = game_camera_view(g);
+    /* The stage has group artwork. Dining Area uses the Android event's
+     * Chica-priority shot, even when Bonnie shares the room. */
+    if (occupants < 2 || view == 1 || view == 2 || view == 6)
         return count;
 
     Game angle = *g;

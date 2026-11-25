@@ -6,9 +6,9 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v1.0.3 (Update 3)` · **Vita application version:** `00.25` · **Title ID:** `FNAFSCN01`
+**Release:** `v1.0.4 (Update 4)` · **Vita application version:** `00.26` · **Title ID:** `FNAFSCN01`
 
-[Download Update 3](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.3) · [Patch notes](RELEASE-NOTES.md)
+[Download Update 4](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.4) · [Patch notes](RELEASE-NOTES.md)
 
 ## Features
 
@@ -64,7 +64,7 @@ If FFmpeg is on your PATH, you can also drag the APK onto `Prepare-Game-Data.cmd
 
 ### macOS and Linux
 
-Download and extract the [current repository ZIP](https://github.com/noxgp/fnaf1-ps-vita/archive/refs/heads/main.zip) for the macOS and Linux version of the Data Tool. Open Terminal in the extracted `fnaf1-ps-vita-main` folder. You need Python 3.11 or newer, FFmpeg, `curl` and about 2 GB of free working space.
+Download the **Data Tool** ZIP from the [release page](https://github.com/noxgp/fnaf1-ps-vita/releases/latest) and extract it. Open Terminal in the extracted folder. You need Python 3.11 or newer, FFmpeg, `curl` and about 2 GB of free working space.
 
 - **macOS with Homebrew** — `brew install python ffmpeg`
 - **Ubuntu 24.04 / Debian 12 or newer** — `sudo apt install python3 python3-venv ffmpeg curl`
@@ -113,7 +113,7 @@ Merge it into `ux0:data/fnaf1/`, then install the new VPK.
 
 ## Known limitations
 
-- **Testing.** The 00.25 build passed local validation and the maintainer tested it on a physical PS Vita. See [testing](docs/TESTING.md) for details.
+- **Testing.** Build 00.26 passed automated regression checks. The maintainer tested build 00.25 on a physical PS Vita. See [testing](docs/TESTING.md) for details.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**

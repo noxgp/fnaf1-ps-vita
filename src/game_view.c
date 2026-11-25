@@ -609,7 +609,7 @@ void game_view_draw(const Game *g, unsigned fps, int save_error) {
     int p = g->phase;
     if (android_menu_phase(p)) {
         if (p == G_TITLE || p == G_CONFIRM_NEW)
-            text(286, 495, "Update 3");
+            text(286, 495, "Update 4");
         if (p == G_EXTRAS)
             android_menu_draw_extras_status(g);
         if (p == G_OPTIONS || p == G_CONTROL_OPTIONS)

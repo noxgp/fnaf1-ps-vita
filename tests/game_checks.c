@@ -670,7 +670,11 @@ int run_game_checks(void) {
     g.camera = 1;
     g.position[1] = g.position[2] = 76;
     g.branch[0] = g.branch[1] = 1;
-    CHECK(game_camera_feeds(&g, feeds) == 2 && feeds[0] == 40 && feeds[1] == 28, 195);
+    CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 40, 195);
+    g.branch[1] = 2;
+    CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 55, 234);
+    g.position[2] = 83;
+    CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 28, 235);
 
     game_defaults(&s);
     game_encode_save(&s, bytes);

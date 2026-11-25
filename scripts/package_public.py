@@ -10,8 +10,8 @@ from zipfile import ZIP_DEFLATED, ZipFile
 from generate_public_art import prepare
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '1.0.3'
-APP_VERSION = '00.25'
+VERSION = '1.0.4'
+APP_VERSION = '00.26'
 APP_TITLE = "Five Nights At Freddy's"
 NAME = f'FNAF1-Vita-v{VERSION}.vpk'
 LIVEAREA = 'sce_sys/livearea/contents/'

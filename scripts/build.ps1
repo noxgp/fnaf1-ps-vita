@@ -62,7 +62,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Vita ELF conversion failed' }
     & (Join-Path $sdkBin 'vita-make-fself.exe') -s build/scene/app.velf build/scene/eboot.bin
     if ($LASTEXITCODE -ne 0) { throw 'SELF creation failed' }
-    & (Join-Path $sdkBin 'vita-mksfoex.exe') -s TITLE_ID=FNAFSCN01 -s APP_VER=00.25 "Five Nights At Freddy's" build/scene/param.sfo
+    & (Join-Path $sdkBin 'vita-mksfoex.exe') -s TITLE_ID=FNAFSCN01 -s APP_VER=00.26 "Five Nights At Freddy's" build/scene/param.sfo
     if ($LASTEXITCODE -ne 0) { throw 'SFO creation failed' }
     $packageArgs = @()
     if ($LauncherVpk) { $packageArgs += '--launcher-vpk', $LauncherVpk }

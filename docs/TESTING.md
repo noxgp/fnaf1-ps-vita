@@ -1,5 +1,11 @@
 # Release validation
 
+## Update 4 (v1.0.4 / APP_VER 00.26)
+
+- Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.
+- The CAM 1B tests cover both Chica poses with Bonnie present, holding the selected frame past the old switch interval, and showing Bonnie after Chica leaves.
+- A physical Vita result for this build has yet to be recorded.
+
 ## Update 3 (v1.0.3 / APP_VER 00.25)
 
 - Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.

@@ -1,3 +1,17 @@
+# Update 4 (v1.0.4)
+
+Vita app version `00.26` · Title ID `FNAFSCN01`
+
+- Fixed CAM 1B (Dining Area) to follow the Android camera rules. When Bonnie and Chica share the room, the feed shows Chica without cycling between the two. Bonnie appears if he is still there when Chica leaves.
+- The title screen now shows **Update 4**.
+- The release Data Tool ZIP now includes the Windows, macOS, and Linux preparation paths.
+
+If you already have the port, install the new VPK over the previous version in VitaShell and keep your `ux0:data/fnaf1/` folder and saves. For a fresh setup, use your own supported Android 2.0.7 copy. [Installation guide](https://github.com/noxgp/fnaf1-ps-vita#installation)
+
+Automated checks passed, including the frame selection for both occupants and the change to Bonnie after Chica leaves. [Testing details](https://github.com/noxgp/fnaf1-ps-vita/blob/main/docs/TESTING.md)
+
+---
+
 # Update 3 (v1.0.3)
 
 Vita app version `00.25` · Title ID `FNAFSCN01`

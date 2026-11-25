@@ -597,5 +597,18 @@ int run_presentation_checks(void) {
     g.camera_cut_ms = 0;
     view();
     CHECK(!count(615), 147);
+    night();
+    g.monitor = 1;
+    g.camera = 1;
+    g.position[1] = g.position[2] = 76;
+    g.branch[0] = g.branch[1] = 1;
+    view();
+    CHECK(count(507) == 1 && !count(500), 148);
+    g.elapsed = 1200;
+    view();
+    CHECK(count(507) == 1 && !count(500), 149);
+    g.position[2] = 83;
+    view();
+    CHECK(count(500) == 1 && !count(507), 150);
     return 0;
 }

@@ -1,24 +1,24 @@
 # VitaDB listing details
 
-Use this information when submitting Update 3 or updating the existing VitaDB listing.
+Use this information when submitting Update 4 or updating the existing VitaDB listing.
 
 | Field | Value |
 | --- | --- |
 | Name | Five Nights At Freddy's |
 | Author | nox |
-| Version | 1.0.3 (Vita APP_VER 00.25) |
+| Version | 1.0.4 (Vita APP_VER 00.26) |
 | Title ID | FNAFSCN01 |
 | Category | Game port / unofficial native adaptation |
 | Source | https://github.com/noxgp/fnaf1-ps-vita |
-| Release | https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.3 |
-| VPK | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.3/FNAF1-Vita-v1.0.3.vpk |
-| Data tool | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.3/FNAF1-Data-Tool-v1.0.3.zip |
+| Release | https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.4 |
+| VPK | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.4/FNAF1-Vita-v1.0.4.vpk |
+| Data tool | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.4/FNAF1-Data-Tool-v1.0.4.zip |
 | Icon | `sce_sys/icon0.png` from the release VPK |
 | Game data URL | None — users prepare locally from their own supported Android copy |
 
 Description:
 
-Unofficial native PS Vita adaptation using Five Nights at Freddy's Android game data. Includes nights 1–6, Custom Night, saving, phone audio and subtitles, and local Extras. Update 3 restores the wide white camera transition, makes door lights tap to toggle, improves Foxy's run playback and rebalances ambient audio. Playable game data is prepared separately. Requires local preparation from the exact supported application-data revision documented on GitHub. Not a general Android/Clickteam emulator and not affiliated with the original authors. AI edge fidelity, perspective and device performance have documented limitations.
+Unofficial native PS Vita adaptation using Five Nights at Freddy's Android game data. Includes nights 1–6, Custom Night, saving, phone audio and subtitles, and local Extras. Update 4 aligns the Dining Area (CAM 1B) shot selection with the Android version. Playable game data is prepared separately. Requires local preparation from the exact supported application-data revision documented on GitHub. Not a general Android/Clickteam emulator and not affiliated with the original authors. AI edge fidelity, perspective and device performance have documented limitations.
 
 Installation note:
 
