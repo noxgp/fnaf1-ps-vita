@@ -6,7 +6,7 @@ typedef struct {
 } PerspectiveVertex;
 static inline float office_height_scale(float x, float half_width) {
     float offset = (x - 480.0f) / half_width;
-    return 1.0f + .22f * offset * offset;
+    return 1.0f + .32f * offset * offset;
 }
 void perspective_mesh(PerspectiveVertex *vertices, float x, float y, float width, float height,
                       float half_width);

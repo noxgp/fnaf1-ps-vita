@@ -80,7 +80,7 @@ static unsigned estimate_bytes(int handle) {
             return 0;
         w = (unsigned)(m->width * 3 + 2) / 4;
         h = (unsigned)(m->height * 3 + 2) / 4;
-        scare_texture_size(handle, &w, &h);
+        animation_texture_size(handle, &w, &h);
     }
     return ((((w + 7) & ~7u) * texture_pixel_bytes(handle) * h) + 0x3ffffu) & ~0x3ffffu;
 }

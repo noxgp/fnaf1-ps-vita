@@ -268,6 +268,8 @@ int main(void) {
                 pending_audio[s.channel].volume = s.volume;
         }
         game.sound_count = 0;
+        if (game.phase == G_PLAY && audio_ready && game_audio_finished(2))
+            game.phone_finished = 1;
         if (game.dirty && now >= next_save) {
             save_error = write_save(&game.save);
             if (!save_error)
@@ -287,12 +289,15 @@ int main(void) {
         Game rendered = game;
         if (rendered.phase == G_SCARE && !loading)
             rendered.phase_ms += accum;
-        if (rendered.phase == G_PLAY && rendered.monitor_ms && !loading)
-            rendered.monitor_ms += accum;
-        if (rendered.phase == G_PLAY && !loading)
+        if (rendered.phase == G_PLAY && !loading) {
+            if (rendered.monitor_ms)
+                rendered.monitor_ms += accum;
+            rendered.camera_cut_ms =
+                rendered.camera_cut_ms > accum ? rendered.camera_cut_ms - accum : 0;
             for (int i = 0; i < 2; ++i)
                 if (rendered.door_ms[i])
                     rendered.door_ms[i] += accum;
+        }
         int waiting_for_title = rendered.phase == G_TITLE && !title_revealed;
         if (waiting_for_title)
             rendered.phase_ms = 500;

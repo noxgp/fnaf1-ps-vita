@@ -110,9 +110,9 @@ void game_events_tick(Game *g, unsigned ms) {
     g->event_five_ms += ms;
     while (g->event_five_ms >= 5000) {
         g->event_five_ms -= 5000;
-        if (game_event_random(g, 60) == 0 && !g->ambience_cooldown_ms && g->position[0] != 83) {
-            game_sound(g, 29, A_CREEK, 0, 60);
-            g->ambience_cooldown_ms = 60000;
+        if (game_event_random(g, 90) == 0 && !g->ambience_cooldown_ms && g->position[0] != 83) {
+            game_sound(g, 29, A_CREEK, 0, 26);
+            g->ambience_cooldown_ms = 90000;
         }
         intruder(g, 0);
         intruder(g, 1);
@@ -120,8 +120,8 @@ void game_events_tick(Game *g, unsigned ms) {
     g->event_ten_ms += ms;
     while (g->event_ten_ms >= 10000) {
         g->event_ten_ms -= 10000;
-        if (game_event_random(g, 50) == 0)
-            game_sound(g, 39, A_DRONE, 0, 10 + (int)game_event_random(g, 40));
+        if (game_event_random(g, 20) == 0)
+            game_sound(g, 39, A_DRONE, 0, 30 + (int)game_event_random(g, 30));
     }
     g->murmur_ms += ms;
     while (g->murmur_ms >= 100) {

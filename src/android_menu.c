@@ -113,11 +113,11 @@ static void warm_title(const Game *g) {
     int n = 4 + (g->save.unlocked >= 6) + (g->save.unlocked >= 7);
     for (int i = 0; i < n; ++i)
         gpu_queue_warm(scene_art(title_object(game_title_action(g, i)), 0, 0));
-    const int objects[] = {9, 10, 11, 14, 17, 18, 21, 22, 32};
+    const int objects[] = {9, 10, 11, 14, 17, 18, 21, 22, 32, 36, 37};
     for (int i = 0; i < COUNT(objects); ++i)
         gpu_queue_warm(scene_art(objects[i], 0, 0));
     const AndroidText *texts[] = {caption(40, 0), caption(41, 0),
-                                  caption(43, g->save.next_night - 1)};
+                                  caption(43, g->save.next_night - 1), caption(42, 0)};
     for (int i = 0; i < COUNT(texts); ++i)
         if (texts[i])
             gpu_queue_warm(texts[i]->handle);

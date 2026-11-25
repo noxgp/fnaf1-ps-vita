@@ -15,7 +15,8 @@ enum {
     A_INTRUDER = 17,
     A_GOLDEN = 18,
     A_MONITOR = 19,
-    A_RUN = 20
+    A_RUN = 20,
+    A_SIGHTING = 22
 };
 unsigned game_event_random(Game *g, unsigned n);
 void game_events_start(Game *g);

@@ -52,6 +52,13 @@ enum { CONTROL_MONITOR, CONTROL_DOOR, CONTROL_LIGHT, CONTROL_LEFT_DOOR,
 enum { CONTROLS_FIRST_ACTION = 1, CONTROLS_BACK = CONTROLS_FIRST_ACTION + CONTROL_ACTION_COUNT };
 enum { OPTIONS_CONTROLS = 8 };
 enum { OFFICE_PAN_MAX = 320, DOOR_FPS = 30, DOOR_DURATION_MS = 540 };
+enum {
+    CAMERA_CUT_FPS = 42,
+    CAMERA_CUT_FRAMES = 9,
+    CAMERA_CUT_MS = (1000 * CAMERA_CUT_FRAMES + CAMERA_CUT_FPS - 1) / CAMERA_CUT_FPS,
+    CAMERA_MOVE_STATIC_MS = 440
+};
+enum { PAUSE_RESUME, PAUSE_OPTIONS, PAUSE_TITLE, PAUSE_EXIT, PAUSE_COUNT };
 typedef struct {
     int display, perspective, vibration, subtitles, forced, language, music, volume;
     int unlimited, fast, radar, plush[4];
@@ -70,12 +77,13 @@ typedef struct {
     int phase, return_phase, options_parent, selection, night, hour, power, usage;
     int door[2], light[2], jam[2], monitor, camera, pan, ai[4], position[3], branch[2], fox,
         fox_hits;
-    int phone_muted, killer, golden, picture, outage_stage, cheated, dirty, quit, diagnostics,
+    int phone_muted, phone_finished, pause_action, killer, golden, picture, outage_stage, cheated, dirty, quit, diagnostics,
         extras_tab, pan_speed, pan_fraction, camera_flicker, camera_twitch;
     int halloween, hallucination_roll, startup_roll, dead_roll, last_freddy_position, murmur_volume,
-        event_volumes[24], side_attack_armed, binding_capture;
+        event_volumes[24], side_attack_armed, binding_capture, door_seen[2], light_flicker;
     uint32_t rng, elapsed, phase_ms, hour_ms, drain_ms, passive_ms, move_ms[4], freddy_wait, fox_ms,
-        inside_ms[2], light_ms, golden_ms, outage_roll, phone_ms, static_ms, door_ms[2], monitor_ms,
+        inside_ms[2], side_visited[2], light_ms, golden_ms, outage_roll, static_ms, camera_cut_ms,
+        door_ms[2], monitor_ms,
         fox_cooldown, watch_ms, freddy_inside_ms, kitchen_ms, camera_scan, visual_rng,
         flicker_clock, twitch_ms;
     uint32_t event_rng, hallucination_left, event_second_ms, event_four_ms, event_five_ms,
@@ -93,6 +101,7 @@ const char *game_control_action_name(int action);
 int game_control_binding(const GameOptions *options, int action);
 const char *game_control_button_name(const GameOptions *options, int action);
 int game_light_visible(const Game *g, int side);
+int game_phone_can_mute(const Game *g);
 void game_sound(Game *g, int id, int channel, int loop, int volume);
 int game_camera_view(const Game *g);
 int game_camera_waypoint(const Game *g);

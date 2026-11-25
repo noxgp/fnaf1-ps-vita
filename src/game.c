@@ -242,7 +242,8 @@ void game_select_camera(Game *g, int camera) {
         return;
     g->camera = camera;
     g->camera_selected_ms = g->elapsed;
-    g->static_ms = 90;
+    g->camera_cut_ms = CAMERA_CUT_MS;
+    g->static_ms = 0;
     game_sound(g, 11, 7, 0, 60);
 }
 int game_camera_pan(const Game *g) {
@@ -350,7 +351,7 @@ static int menu_count(const Game *g) {
     if (g->phase == G_CUSTOM)
         return 6;
     if (g->phase == G_PAUSE)
-        return 4;
+        return g->pause_action ? 2 : PAUSE_COUNT;
     return 1;
 }
 static void change_option(Game *g, int direction) {
@@ -413,8 +414,31 @@ int game_office_side(const Game *g) {
     return -1;
 }
 int game_light_visible(const Game *g, int side) {
-    unsigned cycle = g->light_ms % 240;
-    return g->light[side] && (cycle < 120 || cycle >= 180);
+    return g->light[side] && !g->light_flicker;
+}
+int game_phone_can_mute(const Game *g) {
+    return g->night >= 1 && g->night <= 5 && !g->phone_muted && !g->phone_finished;
+}
+static void set_light(Game *g, int side) {
+    if ((side < 0 && !g->light[0] && !g->light[1]) || (side >= 0 && g->light[side]))
+        return;
+    g->light[0] = side == 0;
+    g->light[1] = side == 1;
+    g->light_flicker = 0;
+    g->light_ms = side >= 0 ? 220 + visual_random(g, 580) : 0;
+    game_sound(g, side >= 0 ? 1 : -1, 5, side >= 0, side >= 0 ? 100 : 0);
+}
+static void check_door_sighting(Game *g, int side) {
+    if (side >= 0 && game_light_visible(g, side) && !g->door[side] &&
+        !g->door_ms[side] && !g->door_seen[side] && g->position[side + 1] == 99 + side) {
+        g->door_seen[side] = 1;
+        game_sound(g, 31, A_SIGHTING, 0, 80);
+    }
+}
+static void start_pause(Game *g) {
+    g->return_phase = g->phase;
+    g->pause_action = 0;
+    phase(g, G_PAUSE);
 }
 void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
     if (g->phase == G_CONTROL_OPTIONS) {
@@ -450,14 +474,10 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         return;
     }
     if (g->phase == G_PLAY) {
-        if (pressed & (IN_PAUSE | IN_HELP)) {
-            if (g->light[0] || g->light[1])
-                game_sound(g, -1, 5, 0, 0);
-            g->light[0] = g->light[1] = 0;
-        }
+        if (pressed & (IN_PAUSE | IN_HELP))
+            set_light(g, -1);
         if (pressed & IN_PAUSE) {
-            g->return_phase = G_PLAY;
-            phase(g, G_PAUSE);
+            start_pause(g);
             return;
         }
         if (pressed & IN_HELP) {
@@ -468,11 +488,13 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         unsigned monitor_keys = IN_DIRECT_MONITOR | control_input(g, CONTROL_MONITOR);
         if (g->save.options.control_layout == CONTROL_CONTEXTUAL)
             monitor_keys |= IN_L;
-        int flip_monitor = (pressed & monitor_keys) != 0;
+        int flip_monitor = !g->monitor_ms && (pressed & monitor_keys);
         if (flip_monitor) {
             g->monitor ^= 1;
-            g->monitor_ms = g->monitor_ms ? monitor_reverse(g->monitor_ms) : 1;
-            g->static_ms = 180;
+            g->monitor_ms = 1;
+            g->camera_cut_ms = 0;
+            g->static_ms = 0;
+            set_light(g, -1);
             game_sound(g, g->monitor ? 6 : 7, 3, 0, 65);
             game_sound(g, g->monitor ? 5 : -1, A_MONITOR, 0, 100);
             if (!g->monitor)
@@ -487,14 +509,15 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
                 }
             }
         }
-        if (g->monitor) {
+        if (g->monitor && !g->monitor_ms) {
             int dx = ((pressed & IN_RIGHT) != 0) - ((pressed & IN_LEFT) != 0),
                 dy = ((pressed & IN_DOWN) != 0) - ((pressed & IN_UP) != 0);
             game_select_camera(g, camera_map_move(g->camera, dx, dy));
         }
         g->pan_speed =
-            g->monitor ? 0
-                       : analog * 6 + ((held & IN_RIGHT) ? 480 : 0) - ((held & IN_LEFT) ? 480 : 0);
+            (g->monitor || g->monitor_ms)
+                ? 0
+                : analog * 6 + ((held & IN_RIGHT) ? 480 : 0) - ((held & IN_LEFT) ? 480 : 0);
         int side = !g->monitor && !g->monitor_ms ? game_office_side(g) : -1;
         unsigned door_keys = IN_DIRECT_DOOR | control_input(g, CONTROL_DOOR) |
                              control_input(g, side == 0 ? CONTROL_LEFT_DOOR : CONTROL_RIGHT_DOOR);
@@ -508,27 +531,22 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
             }
         }
 
-        int was_light = g->light[0] || g->light[1];
         unsigned light_keys = IN_DIRECT_LIGHT | control_input(g, CONTROL_LIGHT) |
                               control_input(g, side == 0 ? CONTROL_LEFT_LIGHT : CONTROL_RIGHT_LIGHT);
-        int lit_side = side >= 0 && !g->jam[side] && (held & light_keys) ? side : -1;
-        if (lit_side < 0 || !g->light[lit_side])
-            g->light_ms = 0;
-        g->light[0] = lit_side == 0;
-        g->light[1] = lit_side == 1;
-        if (was_light != (lit_side >= 0))
-            game_sound(g, lit_side >= 0 ? 1 : -1, 5, lit_side >= 0, lit_side >= 0 ? 100 : 0);
-        if (pressed & (IN_DIRECT_MUTE | control_input(g, CONTROL_MUTE))) {
+        if (side < 0 || g->jam[side] || g->light[1 - side])
+            set_light(g, -1);
+        if (side >= 0 && !g->jam[side] && (pressed & light_keys))
+            set_light(g, g->light[side] ? -1 : side);
+        check_door_sighting(g, side);
+        if (game_phone_can_mute(g) && (pressed & (IN_DIRECT_MUTE | control_input(g, CONTROL_MUTE)))) {
             g->phone_muted = 1;
             game_sound(g, -1, 2, 0, 0);
         }
         return;
     }
     if (g->phase == G_OUTAGE) {
-        if (pressed & IN_PAUSE) {
-            g->return_phase = G_OUTAGE;
-            phase(g, G_PAUSE);
-        }
+        if (pressed & IN_PAUSE)
+            start_pause(g);
         return;
     }
     if (g->phase == G_INTRO || g->phase == G_NEWSPAPER) {
@@ -554,7 +572,11 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
     }
     if (pressed & IN_BACK) {
         if (g->phase == G_PAUSE) {
-            phase(g, g->return_phase);
+            if (g->pause_action) {
+                g->pause_action = 0;
+                g->selection = PAUSE_RESUME;
+            } else
+                phase(g, g->return_phase);
         } else if (g->phase == G_OPTIONS) {
             if (g->options_parent == G_TITLE)
                 title(g);
@@ -589,16 +611,9 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
     game_sound(g, 11, 7, 0, 55);
     if (g->phase == G_TITLE) {
         int i = game_title_action(g, g->selection);
-        if (i == TITLE_NEW) {
-            if (g->save.next_night > 1)
-                phase(g, G_CONFIRM_NEW);
-            else {
-                g->save.next_night = 1;
-                g->dirty = 1;
-                phase(g, G_NEWSPAPER);
-                stop_all(g);
-            }
-        } else if (i == TITLE_CONTINUE)
+        if (i == TITLE_NEW)
+            phase(g, G_CONFIRM_NEW);
+        else if (i == TITLE_CONTINUE)
             game_start(g, g->save.next_night);
         else if (i == TITLE_OPTIONS) {
             g->options_parent = G_TITLE;
@@ -620,30 +635,64 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
             change_option(g, 1);
     } else if (g->phase == G_PAUSE) {
         int i = g->selection;
-        if (i == 0)
+        if (g->pause_action) {
+            int action = g->pause_action;
+            g->pause_action = 0;
+            g->selection = PAUSE_RESUME;
+            if (i && action == PAUSE_TITLE)
+                title(g);
+            else if (i && action == PAUSE_EXIT)
+                g->quit = 1;
+        } else if (i == PAUSE_RESUME)
             phase(g, g->return_phase);
-        else if (i == 1) {
+        else if (i == PAUSE_OPTIONS) {
             g->options_parent = G_PAUSE;
             phase(g, G_OPTIONS);
-        } else if (i == 2)
-            title(g);
-        else
-            g->quit = 1;
+        } else {
+            g->pause_action = i;
+            g->selection = 0;
+        }
     }
+}
+static void camera_actor_moved(Game *g, int from, int to, int sound) {
+    int room = game_camera_waypoint(g);
+    if (!g->monitor || (room != from && room != to))
+        return;
+    g->static_ms = CAMERA_MOVE_STATIC_MS;
+    g->camera_cut_ms = CAMERA_CUT_MS;
+    if (sound) {
+        const int glitches[] = {8, 12, 13, 14};
+        game_sound(g, glitches[game_event_random(g, 4)], A_CAMERA, 0, 100);
+    }
+}
+static unsigned route_room(int position) {
+    return position >= 75 && position <= 84 ? 1u << (position - 75) : 0;
 }
 static void move_side(Game *g, int actor) {
     int index = actor - 1, b = 1 + (int)random_n(g, 2), pos = g->position[actor];
-    g->branch[index] = b;
     int next = original_move(actor, pos, b, g->door[index]);
-    if (next != pos) {
-        if (g->monitor && (game_camera_waypoint(g) == pos || game_camera_waypoint(g) == next)) {
-            const int glitches[] = {8, 12, 13, 14};
-            game_sound(g, glitches[game_event_random(g, 4)], A_CAMERA, 0, 100);
+    if (pos == 99 + index) {
+        g->side_visited[index] = 0;
+    } else {
+        /* Prefer a new room when the chosen branch would repeat this approach. */
+        g->side_visited[index] |= route_room(pos);
+        if (g->side_visited[index] & route_room(next)) {
+            int alternate = original_move(actor, pos, 3 - b, g->door[index]);
+            if (alternate != pos && !(g->side_visited[index] & route_room(alternate))) {
+                b = 3 - b;
+                next = alternate;
+            }
         }
+    }
+    g->branch[index] = b;
+    if (next != pos) {
+        camera_actor_moved(g, pos, next, 1);
         g->position[actor] = next;
-        g->static_ms = g->monitor ? 180 : g->static_ms;
+        g->door_seen[index] = 0;
         if (next == 101 || next == 102) {
             g->jam[index] = 1;
+            if (g->light[index])
+                set_light(g, -1);
             g->inside_ms[index] = 0;
             if (g->monitor)
                 g->side_attack_armed |= 1 << index;
@@ -724,7 +773,6 @@ void game_tick(Game *g, unsigned ms) {
         return;
     g->elapsed += ms;
     g->hour_ms += ms;
-    g->phone_ms += ms;
     g->camera_scan = (g->camera_scan + ms * 60) % 840000;
     unsigned second = g->save.options.fast ? 500 : 1000;
     if (g->hour_ms >= second * (g->hour ? 89u : 90u)) {
@@ -779,7 +827,8 @@ void game_tick(Game *g, unsigned ms) {
         g->static_ms -= ms;
     else
         g->static_ms = 0;
-    if (!g->monitor) {
+    g->camera_cut_ms = g->camera_cut_ms > ms ? g->camera_cut_ms - ms : 0;
+    if (!g->monitor && !g->monitor_ms) {
         g->pan_fraction += g->pan_speed * (int)ms;
         g->pan = clamp(g->pan + g->pan_fraction / 1000, 0, OFFICE_PAN_MAX);
         g->pan_fraction %= 1000;
@@ -792,11 +841,22 @@ void game_tick(Game *g, unsigned ms) {
         }
     if (g->monitor_ms) {
         g->monitor_ms += ms;
-        if (g->monitor_ms >= MONITOR_DURATION)
+        if (g->monitor_ms >= MONITOR_DURATION) {
             g->monitor_ms = 0;
+            if (g->monitor)
+                g->camera_cut_ms = CAMERA_CUT_MS;
+        }
     }
-    if (g->light[0] || g->light[1])
-        g->light_ms += ms;
+    if (g->light[0] || g->light[1]) {
+        if (g->light_ms > ms)
+            g->light_ms -= ms;
+        else {
+            g->light_flicker ^= 1;
+            g->light_ms = g->light_flicker ? 20 + visual_random(g, 41)
+                                           : 300 + visual_random(g, 1150);
+        }
+        check_door_sighting(g, game_office_side(g));
+    }
     g->usage = 1 + g->door[0] + g->door[1] + g->light[0] + g->light[1] + g->monitor;
     g->drain_ms += ms;
     if (g->drain_ms >= 1000) {
@@ -884,10 +944,12 @@ void game_tick(Game *g, unsigned ms) {
         }
     }
     if (g->position[0] == 81 && g->monitor && game_camera_view(g) != 42) {
-        if (!g->door[1])
+        if (!g->door[1]) {
             g->position[0] = 122;
-        else if (game_camera_view(g) != 4) {
+            camera_actor_moved(g, 81, 122, 0);
+        } else if (game_camera_view(g) != 4) {
             g->position[0] = 80;
+            camera_actor_moved(g, 81, 80, 0);
             g->freddy_wait = 0;
         }
     }
@@ -903,7 +965,7 @@ void game_tick(Game *g, unsigned ms) {
     }
     if (g->fox >= 3) {
         g->fox_ms += ms;
-        if (g->fox == 3 && g->monitor && game_camera_view(g) == 3) {
+        if (g->fox == 3 && g->monitor && !g->monitor_ms && game_camera_view(g) == 3) {
             g->fox = 4;
             g->fox_ms = 0;
             game_sound(g, 10, A_RUN, 0, 100);

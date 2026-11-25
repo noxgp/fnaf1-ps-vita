@@ -1,5 +1,11 @@
 # Release validation
 
+## Update 3 (v1.0.3 / APP_VER 00.25)
+
+- Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.
+- The checks cover light toggling and the once-per-visit sighting cue, monitor input during animation, camera movement and wide glitch frames, Foxy frame requests, call completion and pause confirmation.
+- The maintainer tested `00.25` on a physical PS Vita. Device model, firmware, storage type, individual results and measured FPS were not recorded.
+
 ## Update 2 (v0.1.0-beta.3 / APP_VER 00.23)
 
 - Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.

@@ -209,7 +209,11 @@ int run_checks(void) {
     CHECK(!output[0] && game_audio_position(23) == 46, 4);
     game_audio_settings(100, 0, 1);
     game_audio_test_step(output);
-    CHECK(output[0] == 1500 && opens == 3, 5);
+    CHECK(output[0] == 1500 && opens == 3 && !game_audio_finished(23), 5);
+    game_audio_test_step(output);
+    CHECK(!output[0] && game_audio_finished(23), 23);
+    game_audio_play(1, 23, 0, 100);
+    CHECK(!game_audio_finished(23), 24);
     game_audio_play(-1, 23, 0, 0);
     game_audio_test_step(output);
     CHECK(!output[0] && closes == 3, 6);

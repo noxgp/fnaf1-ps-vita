@@ -9,5 +9,5 @@ const ScareAnimation *scare_animation(int killer);
 int scare_frame(int killer, unsigned ms);
 unsigned scare_duration(int killer);
 int scare_image(int handle);
-void scare_texture_size(int handle, unsigned *width, unsigned *height);
+void animation_texture_size(int handle, unsigned *width, unsigned *height);
 #endif

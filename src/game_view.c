@@ -13,6 +13,9 @@
 #include <stdio.h>
 #include <string.h>
 static unsigned clock_time;
+enum { PAUSE_X = 105, PAUSE_Y = 200, PAUSE_ROW = 48, PAUSE_HIT_WIDTH = 230 };
+enum { FOX_RUN_ANIMATION = 51, FOX_RUN_FPS = 39, FOX_LOOKAHEAD = 8 };
+enum { CAMERA_CUT_OBJECT = 53, CAMERA_CUT_NOISE_MS = 100 };
 static void image(int handle, float x, float y, float w, float h, unsigned color, int perspective) {
     gpu_queue_image(handle, x, y, w, h, color, perspective);
 }
@@ -50,7 +53,7 @@ static void forced(const Game *g, const char *key, int step) {
     }
 }
 static void phone_subtitle(const Game *g, unsigned ms) {
-    if (!g->save.options.subtitles || g->phone_muted || g->night > 4)
+    if (!g->save.options.subtitles || !game_phone_can_mute(g) || g->night > 4)
         return;
     for (unsigned i = 0; i < sizeof(subtitle_cues) / sizeof(*subtitle_cues); ++i) {
         const SubtitleCue *c = &subtitle_cues[i];
@@ -114,7 +117,7 @@ static void hud(const Game *g) {
     art(115, 0, 0, 754, 74, 0, 1, 0);
     number_at(g->night, night_digits, 1237, 89);
     art(113, 0, 0, 554, 668, 0, 1, 0);
-    if (!g->phone_muted && g->night <= 5 && g->phone_ms < 180000)
+    if (game_phone_can_mute(g))
         art(119, 0, 0, 87, 37, 0, 1, 0);
 }
 static void hint_animation(int object, int animation) {
@@ -240,20 +243,50 @@ static void art_animation(int object, int animation, unsigned ms, unsigned fps, 
 }
 static int last_camera_noise = -1;
 static void camera_noise(unsigned ms, unsigned color) {
-    int wanted = scene_art(9, 0, ms / 80), next = scene_art(9, 0, ms / 80 + 1);
-    (void)next;
+    int wanted = scene_art(9, 0, ms / 22);
     if (gpu_texture_ready(wanted))
         last_camera_noise = wanted;
     int visible =
         last_camera_noise >= 0 && gpu_texture_ready(last_camera_noise) ? last_camera_noise : wanted;
-    if (visible != wanted && visible != next)
-        gpu_queue_resident(visible);
     screen(visible, color);
+}
+static void camera_cut(unsigned remaining) {
+    if (!remaining)
+        return;
+    int frame = (int)((CAMERA_CUT_MS - remaining) * CAMERA_CUT_FPS / 1000);
+    int handle = scene_art(CAMERA_CUT_OBJECT, 0, frame);
+    const ImageDef *im = scene_image(handle);
+    /* whiteGlitch.Active is stretched horizontally across the feed in room event 28. */
+    if (im)
+        image(handle, 0, 2 - im->hotspot_y * .75f, 960, im->height * .75f, 0xffffffffu, 0);
+}
+static int fox_run_frame(unsigned ms) {
+    int count = scene_art_count(51, FOX_RUN_ANIMATION);
+    int frame = (int)(ms * FOX_RUN_FPS / 1000);
+    return frame < count ? frame : count - 1;
+}
+static void warm_fox_run(int frame) {
+    int count = scene_art_count(51, FOX_RUN_ANIMATION);
+    for (int f = frame; f < count; ++f) {
+        int handle = scene_art(51, FOX_RUN_ANIMATION, f);
+        if (f - frame < FOX_LOOKAHEAD)
+            gpu_queue_resident(handle);
+        else
+            gpu_queue_warm(handle);
+    }
+}
+static int fox_run_image(int frame) {
+    for (int f = frame; f >= 0; --f) {
+        int handle = scene_art(51, FOX_RUN_ANIMATION, f);
+        if (gpu_texture_ready(handle))
+            return handle;
+    }
+    return -1;
 }
 static void room(const Game *g) {
     int p = g->save.options.perspective, pan = g->pan;
     art(51, 0, 0, 0, 0, pan, 1, p);
-    art(59, 0, (int)(clock_time / 55), 0, 0, pan, 1, p);
+    art(59, 0, (int)(clock_time / 17), 0, 0, pan, 1, p);
     for (int side = 0; side < 2; ++side) {
         int lit = game_light_visible(g, side);
         if (lit)
@@ -265,7 +298,7 @@ static void room(const Game *g) {
                           -1, pan, p, 0);
         else
             art(60 + side, anim, 0, side ? 1270 : 72, -1, pan, 1, p);
-        int button = g->door[side] ? (lit ? 14 : 12) : (lit ? 13 : 0);
+        int button = g->door[side] ? (g->light[side] ? 14 : 12) : (g->light[side] ? 13 : 0);
         art(side ? 66 : 62, button, 0, side ? 1546 : 48, side ? 400 : 390, pan, 1, p);
     }
     plushies(g, 0);
@@ -341,10 +374,13 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
             gpu_queue_resident(591);
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             gpu_queue_resident(control_textures[i]);
-        if (g->return_phase != G_OUTAGE)
+        if (g->return_phase != G_OUTAGE) {
             for (unsigned i = 0; i < sizeof(camera_noise_images) / sizeof(*camera_noise_images);
                  ++i)
                 gpu_queue_resident(camera_noise_images[i]);
+            for (int f = 0; f < CAMERA_CUT_FRAMES; ++f)
+                gpu_queue_warm(scene_art(CAMERA_CUT_OBJECT, 0, f));
+        }
     }
     if (phase == G_INTRO || (phase == G_PLAY && !g->monitor)) {
         warm_scares(g);
@@ -352,6 +388,8 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
             for (int i = 0; i < 4; ++i)
                 gpu_queue_warm(radar_portraits[i]);
     }
+    if (phase == G_PLAY && g->fox >= 2 && g->fox < 4)
+        warm_fox_run(0);
     if (phase == G_NEWSPAPER || phase == G_INTRO || (phase == G_PLAY && !gpu_texture_ready(591)))
         warm_night(g);
     if (preparing_night)
@@ -386,10 +424,14 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                     }
                 int background = -1, displayed = -1;
                 if (game_camera_view(g) != 6) {
-                    int f = g->fox == 4 && game_camera_view(g) == 3 ? (int)(g->fox_ms / 50) : 0;
+                    int running = g->fox == 4 && game_camera_view(g) == 3;
+                    int f = running ? fox_run_frame(g->fox_ms) : 0;
                     background = scene_art(51, a, f);
                     gpu_queue_focus(background);
-                    if (gpu_texture_ready(background))
+                    if (running) {
+                        warm_fox_run(f + 1);
+                        displayed = fox_run_image(f);
+                    } else if (gpu_texture_ready(background))
                         displayed = background;
                     for (int i = 0; feed_count > 1 && i < feed_count; ++i) {
                         int handle = scene_art(51, feeds[i], 0);
@@ -411,9 +453,17 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                                   0xffffffffu, g->save.options.perspective);
                     }
                 }
-                camera_noise(ms, game_camera_view(g) != 6 && displayed < 0 ? 0xffffffffu
-                                 : g->static_ms                            ? 0xe0ffffffu
-                                                                           : 0x24ffffffu);
+                unsigned noise = g->static_ms ? 36 + 164 * g->static_ms / CAMERA_MOVE_STATIC_MS : 36;
+                unsigned cut_elapsed = CAMERA_CUT_MS - g->camera_cut_ms;
+                if (cut_elapsed < CAMERA_CUT_NOISE_MS) {
+                    unsigned cut_noise = 36 + 146 * (CAMERA_CUT_NOISE_MS - cut_elapsed) /
+                                                    CAMERA_CUT_NOISE_MS;
+                    if (cut_noise > noise)
+                        noise = cut_noise;
+                }
+                if (game_camera_view(g) != 6 && displayed < 0)
+                    noise = 255;
+                camera_noise(ms, (noise << 24) | 0xffffffu);
                 /* Keep the office and camera-static animation warm while watching. */
                 gpu_queue_prefetch(591);
                 Game probe = *g;
@@ -424,19 +474,20 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                         gpu_queue_warm(scene_art(51, game_camera_animation(&probe), 0));
                 }
                 art(74, 0, 0, 848, 313, 0, 1, 0);
+                art(50, 0, (int)(g->elapsed / 500), 92, 76, 0, 1, 0);
+                image(120, 12, 14, 935.25f, 1.5f, 0xffffffffu, 0);
+                image(120, 12, 528.5f, 935.25f, 1.5f, 0xffffffffu, 0);
+                image(120, 12, 14, 1.5f, 516, 0xffffffffu, 0);
+                image(120, 945.75f, 14, 1.5f, 516, 0xffffffffu, 0);
+                camera_cut(g->camera_cut_ms);
                 for (int i = 0; i < 11; ++i)
                     art(camera_map[i].object, g->camera == i ? 12 : 0,
                         (int)((g->elapsed - g->camera_selected_ms) * 3u * 60 / 100000),
                         camera_map[i].x, camera_map[i].y, 0, 1, 0);
                 art(87, camera_map[g->camera].label, 0, 832, 292, 0, 1, 0);
-                art(50, 0, (int)(g->elapsed / 500), 92, 76, 0, 1, 0);
                 if (g->camera == 9)
                     art(86, 0, 0, 384, 69, 0, 1, 0);
                 art(130, 0, (int)(g->elapsed / 500), 1028, 657, 0, 1, 0);
-                image(120, 12, 14, 935.25f, 1.5f, 0xffffffffu, 0);
-                image(120, 12, 528.5f, 935.25f, 1.5f, 0xffffffffu, 0);
-                image(120, 12, 14, 1.5f, 516, 0xffffffffu, 0);
-                image(120, 945.75f, 14, 1.5f, 516, 0xffffffffu, 0);
                 if (g->fox == 0 && g->camera == 2)
                     forced(g, "/piratecove", 0);
                 if (a == 23)
@@ -558,7 +609,7 @@ void game_view_draw(const Game *g, unsigned fps, int save_error) {
     int p = g->phase;
     if (android_menu_phase(p)) {
         if (p == G_TITLE || p == G_CONFIRM_NEW)
-            text(286, 495, "Update 2");
+            text(286, 495, "Update 3");
         if (p == G_EXTRAS)
             android_menu_draw_extras_status(g);
         if (p == G_OPTIONS || p == G_CONTROL_OPTIONS)
@@ -578,10 +629,18 @@ void game_view_draw(const Game *g, unsigned fps, int save_error) {
         return;
     }
     if (p == G_PAUSE) {
-        text(150, 125, "Paused");
-        const char *items[] = {"Resume", "Options", "Return to title", "Exit application"};
-        for (int i = 0; i < 4; ++i)
-            text(105, 200 + i * 48, items[i]);
+        if (g->pause_action) {
+            text(PAUSE_X, 125, g->pause_action == PAUSE_EXIT ? "Exit application?" : "Return to title?");
+            text(PAUSE_X, 149, "Your current night will be lost.");
+            text(PAUSE_X, PAUSE_Y, "Cancel");
+            text(PAUSE_X, PAUSE_Y + PAUSE_ROW,
+                 g->pause_action == PAUSE_EXIT ? "Exit application" : "Return to title");
+        } else {
+            text(PAUSE_X, 125, "Paused");
+            const char *items[] = {"Resume", "Options", "Return to title", "Exit application"};
+            for (int i = 0; i < PAUSE_COUNT; ++i)
+                text(PAUSE_X, PAUSE_Y + i * PAUSE_ROW, items[i]);
+        }
     } else if (p == G_HELP) {
         const GameOptions *o = &g->save.options;
         int row = 58;
@@ -623,8 +682,7 @@ int game_touch(Game *g, int x, int y, int initial) {
         return 0;
     }
     if (g->phase == G_PLAY) {
-        if (initial && x >= 20 && x < 112 && y >= 18 && y < 44 && !g->phone_muted &&
-            g->night <= 5 && g->phone_ms < 180000) {
+        if (initial && x >= 20 && x < 112 && y >= 18 && y < 44 && game_phone_can_mute(g)) {
             game_input(g, IN_DIRECT_MUTE, 0, 0);
             return 0;
         }
@@ -652,10 +710,10 @@ int game_touch(Game *g, int x, int y, int initial) {
                 float top = (side ? 400 : 390) - panel->hotspot_y;
                 if (world_x >= left - 12 && world_x < left + panel->width + 12 &&
                     world_y >= top - 8 && world_y < top + panel->height + 8) {
-                    if (world_y >= top + panel->height * .5f)
-                        return IN_DIRECT_LIGHT;
                     if (initial)
-                        game_input(g, IN_DIRECT_DOOR, 0, 0);
+                        game_input(g, world_y >= top + panel->height * .5f ? IN_DIRECT_LIGHT
+                                                                          : IN_DIRECT_DOOR,
+                                   0, 0);
                     return 0;
                 }
             }
@@ -671,10 +729,17 @@ int game_touch(Game *g, int x, int y, int initial) {
     }
     if (!initial)
         return 0;
-    if (g->phase == G_PAUSE && y >= 192 && y < 392) {
-        g->selection = (y - 192) / 48;
-        if (g->selection < 4)
-            game_input(g, IN_OK, 0, 0);
+    if (g->phase == G_PAUSE) {
+        int rows = g->pause_action ? 2 : PAUSE_COUNT;
+        for (int i = 0; i < rows; ++i) {
+            int top = PAUSE_Y + i * PAUSE_ROW;
+            if (x >= PAUSE_X - 12 && x < PAUSE_X + PAUSE_HIT_WIDTH &&
+                y >= top - 8 && y < top + 22) {
+                g->selection = i;
+                game_input(g, IN_OK, 0, 0);
+                break;
+            }
+        }
     } else if (g->phase == G_NEWSPAPER || g->phase == G_DEAD || g->phase == G_ENDING ||
                g->phase == G_HELP)
         game_input(g, IN_OK, 0, 0);

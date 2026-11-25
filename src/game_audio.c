@@ -13,18 +13,20 @@
 #include <vorbis/vorbisfile.h>
 typedef struct {
     int id, channel, loop, volume;
+    unsigned ticket;
 } Command;
 typedef struct {
     const AudioSample *sample;
     AudioMemory memory;
     OggVorbis_File ogg;
     int vorbis, active, loop, volume, id;
-    unsigned frames;
+    unsigned frames, ticket;
 } Voice;
 static Voice voices[AUDIO_VOICES];
 static Command queue[128];
 static AudioCache bank;
 static atomic_uint head, tail, positions[AUDIO_VOICES];
+static atomic_uint requested[AUDIO_VOICES], finished[AUDIO_VOICES];
 static atomic_int running, paused, master, music_enabled, errors, ready, title_ready;
 static SceUID thread = -1, loader = -1;
 static int title_asset(int id) {
@@ -44,6 +46,7 @@ static int open_voice(Voice *v, Command c) {
         (!title_asset(c.id) && !atomic_load_explicit(&ready, memory_order_acquire)) ||
         !bank.sample[c.id].data)
         return -1;
+    v->ticket = c.ticket;
     v->sample = &bank.sample[c.id];
     v->id = c.id;
     v->loop = c.loop;
@@ -105,8 +108,10 @@ static void audio_step(int16_t out[2048]) {
             ++t;
             continue;
         }
-        if (open_voice(&voices[c.channel], c))
+        if (open_voice(&voices[c.channel], c)) {
             atomic_fetch_add(&errors, 1);
+            atomic_store(&finished[c.channel], c.ticket);
+        }
         ++t;
     }
     atomic_store_explicit(&tail, t, memory_order_release);
@@ -119,9 +124,12 @@ static void audio_step(int16_t out[2048]) {
             int volume = v->volume;
             if (!atomic_load(&music_enabled) && (v->id == 35 || v->id == 30))
                 volume = 0;
-            unsigned frames = v->frames, count = read_voice(v, pcm);
+            unsigned frames = v->frames, ticket = v->ticket;
+            unsigned count = read_voice(v, pcm);
             if (v->active)
                 v->frames = frames + count;
+            else
+                atomic_store(&finished[channel], ticket);
             atomic_store(&positions[channel],
                          (unsigned)((uint64_t)(frames + count) * 1000u / 44100u));
             for (unsigned i = 0; i < count * 2; ++i)
@@ -247,7 +255,10 @@ void game_audio_play(int id, int channel, int loop, int volume) {
         atomic_fetch_add(&errors, 1);
         return;
     }
-    queue[h % 128] = (Command){id, channel, loop, volume};
+    unsigned ticket = h + 1;
+    if (id != -2)
+        atomic_store(&requested[channel], ticket);
+    queue[h % 128] = (Command){id, channel, loop, volume, ticket};
     atomic_store_explicit(&head, h + 1, memory_order_release);
 }
 void game_audio_settings(int volume, int pause, int music) {
@@ -257,6 +268,12 @@ void game_audio_settings(int volume, int pause, int music) {
 }
 unsigned game_audio_position(int channel) {
     return channel >= 0 && channel < AUDIO_VOICES ? atomic_load(&positions[channel]) : 0;
+}
+int game_audio_finished(int channel) {
+    if (channel < 0 || channel >= AUDIO_VOICES)
+        return 0;
+    unsigned ticket = atomic_load(&requested[channel]);
+    return ticket && atomic_load(&finished[channel]) == ticket;
 }
 int game_audio_errors(void) {
     return atomic_load(&errors);

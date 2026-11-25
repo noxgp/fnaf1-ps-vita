@@ -37,12 +37,18 @@ int scare_image(int handle) {
             return 1;
     return 0;
 }
-void scare_texture_size(int handle, unsigned *width, unsigned *height) {
+void animation_texture_size(int handle, unsigned *width, unsigned *height) {
     /* Existing files are at 75% source scale. A 50% source texture lets a
      * complete sequence remain resident within the 64 MiB GPU cache. Geometry
      * stays unchanged and the GPU filters the image to the display size. */
     if (scare_image(handle)) {
         *width = (*width * 2 + 1) / 3;
         *height = (*height * 2 + 1) / 3;
+    } else if ((handle >= 265 && handle <= 290) || handle == 292 ||
+               handle == 296 || handle == 297) {
+        /* Camera room object 51, animation 51. Keep the sequence small enough
+         * to preload alongside the office and monitor textures. */
+        *width = (*width + 2) / 3;
+        *height = (*height + 2) / 3;
     }
 }

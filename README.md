@@ -6,9 +6,9 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v0.1.0-beta.3 (Update 2)` · **Vita application version:** `00.23` · **Title ID:** `FNAFSCN01`
+**Release:** `v1.0.3 (Update 3)` · **Vita application version:** `00.25` · **Title ID:** `FNAFSCN01`
 
-See [patch notes](RELEASE-NOTES.md) for all changes in Update 2.
+[Download Update 3](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.3) · [Patch notes](RELEASE-NOTES.md)
 
 ## Features
 
@@ -31,7 +31,7 @@ Open **Options → Controls** to choose a layout:
 | Where | Contextual button | Action |
 |---|---|---|
 | Office | R | Toggle the door on the side you are facing |
-| Office | Hold □ | Light the side you are facing |
+| Office | □ | Toggle the light on the side you are facing |
 | Office | D-pad ← / → or left stick | Look left / right |
 | Office / Cameras | L or ✕ | Raise / lower the camera monitor |
 | Cameras | D-pad | Switch cameras |
@@ -41,13 +41,13 @@ Open **Options → Controls** to choose a layout:
 | Title screen | Select | Toggle the diagnostic HUD |
 | Menus | D-pad / ✕ / ○ | Move / confirm / back |
 
-Hold either edge of the touchscreen to look around. Tap a visible door button, hold its light button, or tap the monitor bar and camera map. You can also tap Mute Call and Freddy's poster nose.
+Hold either edge of the touchscreen to look around. Tap a visible door button, tap its light button to toggle the light, or tap the monitor bar and camera map. You can also tap Mute Call and Freddy's poster nose.
 
 In Extras, Unlimited Power, Fast Nights and Radar disable progress and stars for that run. Plushies don't.
 
 ## Installation
 
-You need a Vita with homebrew support and VitaShell. You also need a **Windows** PC with Python 3.11+ and FFmpeg. Linux and macOS are not supported in this beta.
+You need a Vita with homebrew support and VitaShell. You also need a **Windows** PC with Python 3.11+ and FFmpeg. The Data Tool supports Windows.
 
 1. **Get the APK.** Use the FNaF 1 Android APK from your own purchase. Only one data revision is supported. The tool checks the SHA-256 of `res/raw/application.ccn` against this value:
    `70a1ec40284d4f5232d0ecedcbd94a68c51cd937983ad17d2cbf329aad35b6d4`
@@ -62,7 +62,7 @@ You need a Vita with homebrew support and VitaShell. You also need a **Windows**
 
 The prepared folder contains the game's files. Keep it for yourself. Don't upload it or attach it to anything.
 
-### Upgrading from a previous public beta
+### Upgrading from a previous public release
 
 Install the new VPK over the existing version with VitaShell. The prepared game-data format is the same, so keep `ux0:data/fnaf1/` and its saves in place.
 
@@ -78,7 +78,7 @@ Merge it into `ux0:data/fnaf1/`, then install the new VPK.
 
 ## Known limitations
 
-- **Beta.** The 00.23 build passed local validation and was tested on a physical PS Vita. See [testing](docs/TESTING.md) for the reported result.
+- **Testing.** The 00.25 build passed local validation and the maintainer tested it on a physical PS Vita. See [testing](docs/TESTING.md) for details.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**

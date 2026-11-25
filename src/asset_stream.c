@@ -150,7 +150,7 @@ static int read_asset(int handle, AssetBuffer *b) {
              source_bytes = source_width * source_height * 4;
     if (source_bytes > ASSET_RAM_LIMIT)
         goto failed;
-    scare_texture_size(handle, &b->width, &b->height);
+    animation_texture_size(handle, &b->width, &b->height);
     b->bytes = b->width * b->height * texture_pixel_bytes(handle);
     if (b->bytes > ASSET_RAM_LIMIT)
         goto failed;

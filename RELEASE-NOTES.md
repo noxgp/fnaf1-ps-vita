@@ -1,3 +1,43 @@
+# Update 3 (v1.0.3)
+
+Vita app version `00.25` · Title ID `FNAFSCN01`
+
+Thanks to everyone who tested Update 2 and reported these issues.
+
+### Office and controls
+
+- Tap a light button with the touchscreen or a mapped control to switch it on immediately. Tap again to switch it off.
+- The light briefly flickers at irregular intervals while the panel button stays lit. Pulling up the monitor or looking away from the panel switches the light off.
+- Seeing Bonnie or Chica at an open door plays the sighting sound once per visit, even if you toggle the light again.
+- Increased the office panorama and sped up the desk fan.
+
+### Cameras and animatronics
+
+- Increased perspective on the camera feed. The camera map, its buttons and the HUD remain flat.
+- Restored the original wide white glitch bands when opening the monitor, switching cameras, or when an animatronic moves into or out of the current feed. Camera buttons stay visible over the effect.
+- Camera static animates faster. When an animatronic moves on the monitored feed, the stronger static lasts longer.
+- The monitor completes its raise or lower animation before accepting another flip.
+- Foxy's West Hall run preloads its frames ahead of time so the animation can advance through the sequence.
+- Bonnie and Chica prefer rooms they have not visited on the current approach when an alternative is available. They can still retreat when blocked by a closed door.
+
+### Audio and menus
+
+- Lowered the circus music volume, reduced how often it starts, and increased its cooldown. Other random ambience is more audible and plays more often.
+- **Mute Call** disappears when the call finishes.
+- **New Game** always asks for confirmation.
+- Pause menu touch targets are limited to the displayed options. Returning to the title or exiting the app asks for a second confirmation.
+- Updated the title screen label to **Update 3**.
+
+### Installation and testing
+
+Already on a public beta? Install the new VPK over the existing one with VitaShell and keep `ux0:data/fnaf1/` and your saves. The prepared data format is the same.
+
+For a fresh installation, download the VPK and Windows Data Tool and prepare the data from your own supported Android 2.0.7 copy. [Installation guide](https://github.com/noxgp/fnaf1-ps-vita#installation)
+
+The maintainer tested Vita build `00.25` on a physical PS Vita. The Python and ARM core, renderer, asset reader, audio and UI checks passed. If you spot an issue, include the night or camera, Vita firmware and steps to reproduce. [Testing details](https://github.com/noxgp/fnaf1-ps-vita/blob/main/docs/TESTING.md) · [Report an issue](https://github.com/noxgp/fnaf1-ps-vita/issues)
+
+---
+
 # Update 2 (v0.1.0-beta.3)
 
 Vita app version `00.23` · Title ID `FNAFSCN01`
