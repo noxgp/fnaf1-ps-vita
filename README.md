@@ -2,7 +2,7 @@
 
 An unofficial PS Vita port of **Five Nights at Freddy's** using the supported Android 2.0.7 data revision.
 
-The port uses a game-specific native runtime written in C, with GXM rendering and a custom audio mixer. The Windows Data Tool prepares assets and compiles selected rules and layout data from your Android copy.
+The port uses a game-specific native runtime written in C, with GXM rendering and a custom audio mixer. The Data Tool prepares assets and compiles selected rules and layout data from your Android copy.
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
@@ -47,18 +47,53 @@ In Extras, Unlimited Power, Fast Nights and Radar disable progress and stars for
 
 ## Installation
 
-You need a Vita with homebrew support and VitaShell. You also need a **Windows** PC with Python 3.11+ and FFmpeg. The Data Tool supports Windows.
+1. Download the [VPK for the latest release](https://github.com/noxgp/fnaf1-ps-vita/releases/latest). You need a homebrew-enabled PS Vita with VitaShell.
+2. Use the FNaF 1 Android APK from your own purchase. The Data Tool accepts one Android 2.0.7 data revision and checks that `res/raw/application.ccn` has SHA-256 `70a1ec40284d4f5232d0ecedcbd94a68c51cd937983ad17d2cbf329aad35b6d4`.
+3. Prepare the data on your computer using the instructions below.
 
-1. **Get the APK.** Use the FNaF 1 Android APK from your own purchase. Only one data revision is supported. The tool checks the SHA-256 of `res/raw/application.ccn` against this value:
-   `70a1ec40284d4f5232d0ecedcbd94a68c51cd937983ad17d2cbf329aad35b6d4`
-2. **Build the game data on your PC.** Download the **Data Tool** ZIP from [Releases](https://github.com/noxgp/fnaf1-ps-vita/releases), extract it and run:
-   ```powershell
-   py -3 -m pip install -r requirements-assets.txt
-   py -3 prepare_assets.py --apk "C:\Games\your-copy.apk" --ffmpeg "C:\Tools\ffmpeg.exe"
-   ```
-   If FFmpeg is on your PATH, you can also drag the APK onto `Prepare-Game-Data.cmd`. The tool needs about 2 GB of temporary space and the Windows fonts `consola.ttf`, `tahoma.ttf`, `YuGothM.ttc`, `simsun.ttc` and `malgun.ttf` (use `--font-dir` if they're elsewhere). It creates `prepared/fnaf1/`.
-3. **Copy the data to the Vita.** Copy the `fnaf1` folder to `ux0:data/`, so you end up with `ux0:data/fnaf1/game.version`, `ux0:data/fnaf1/public-ui.version` and `ux0:data/fnaf1/ui/subtitles.idx`. Watch out for a nested `fnaf1/fnaf1` folder.
-4. **Install the VPK.** Install the VPK from the [Releases](https://github.com/noxgp/fnaf1-ps-vita/releases) page with VitaShell. The first launch prepares sounds and textures, so give it a moment.
+### Windows
+
+Download the **Data Tool** ZIP from the [release page](https://github.com/noxgp/fnaf1-ps-vita/releases/latest) and extract it. Open a terminal in the extracted folder. You need Python 3.11 or newer and FFmpeg.
+
+```powershell
+py -3 -m pip install -r requirements-assets.txt
+py -3 prepare_assets.py --apk "C:\Games\your-copy.apk" --ffmpeg "C:\Tools\ffmpeg.exe"
+```
+
+If FFmpeg is on your PATH, you can also drag the APK onto `Prepare-Game-Data.cmd`. The tool uses the Windows fonts `consola.ttf`, `tahoma.ttf`, `YuGothM.ttc`, `simsun.ttc` and `malgun.ttf`. Use `--font-dir` if your fonts are in a different folder.
+
+### macOS and Linux
+
+Download and extract the [current repository ZIP](https://github.com/noxgp/fnaf1-ps-vita/archive/refs/heads/main.zip) for the macOS and Linux version of the Data Tool. Open Terminal in the extracted `fnaf1-ps-vita-main` folder. You need Python 3.11 or newer, FFmpeg, `curl` and about 2 GB of free working space.
+
+- **macOS with Homebrew** — `brew install python ffmpeg`
+- **Ubuntu 24.04 / Debian 12 or newer** — `sudo apt install python3 python3-venv ffmpeg curl`
+- **Other Linux distributions** — install the same dependencies with your package manager.
+
+Download the three Noto Sans CJK fonts for Japanese, Simplified Chinese and Korean subtitles. The repository includes Cousine for menus and the other subtitle languages. [Noto Sans CJK downloads](https://github.com/notofonts/noto-cjk/tree/Sans2.004/Sans/OTF)
+
+```sh
+mkdir -p fonts
+noto=https://raw.githubusercontent.com/notofonts/noto-cjk/Sans2.004/Sans/OTF
+curl -fL "$noto/Japanese/NotoSansCJKjp-Regular.otf" -o fonts/NotoSansCJKjp-Regular.otf
+curl -fL "$noto/SimplifiedChinese/NotoSansCJKsc-Regular.otf" -o fonts/NotoSansCJKsc-Regular.otf
+curl -fL "$noto/Korean/NotoSansCJKkr-Regular.otf" -o fonts/NotoSansCJKkr-Regular.otf
+```
+
+Create a Python virtual environment and run the tool. Replace the example path with the path to your APK.
+
+```sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-assets.txt
+.venv/bin/python prepare_assets.py --apk "/path/to/your-copy.apk"
+```
+
+Use `--font-dir "/path/to/fonts"` if your Noto fonts are elsewhere, or `--ffmpeg "/path/to/ffmpeg"` if FFmpeg is outside your PATH.
+
+### Copy the data and install the VPK
+
+1. The tool creates `prepared/fnaf1/` and checks the generated files. Via VitaShell USB or FTP, copy the entire `fnaf1` folder into `ux0:data/`. Check for `ux0:data/fnaf1/game.version`, `ux0:data/fnaf1/public-ui.version` and `ux0:data/fnaf1/ui/subtitles.idx` at those exact paths. If a folder called `fnaf1` already exists, back up `progress.sav` and `progress.bak` before replacing data.
+2. Copy the VPK to the Vita and install it with VitaShell. Give the first launch a moment to prepare sounds and textures.
 
 The prepared folder contains the game's files. Keep it for yourself. Don't upload it or attach it to anything.
 

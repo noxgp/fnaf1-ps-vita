@@ -1,8 +1,8 @@
 """Prepare original Android menu geometry and text for the Vita frontend.
 
 Existing APK sprite handles are reused without changing external game files.
-Only rasterized String objects and native audio labels go inside the small VPK.
-The APK's font bank specifies Consolas 24/32; no font binaries are distributed.
+String objects and native menu labels become local textures.
+The APK uses Consolas 24/32. The caller can supply a compatible monospace font.
 """
 import io
 import os
@@ -29,14 +29,16 @@ def wrapped(value,font,width):
         lines.append(current)
     return '\n'.join(lines)
 
-def prepare():
+def prepare(font_path=None):
+    if font_path is None:
+        font_path = Path(os.environ.get('FNAF_FONT_DIR', 'C:/Windows/Fonts')) / 'consola.ttf'
     objects={o['handle']:o for o in json.loads((ROOT/'data/scenes/objects.json').read_text(encoding='utf-8'))}
     output=ROOT/'build/android-ui';output.mkdir(parents=True,exist_ok=True)
     entries=[];widgets=[];captions={};handle=7000
     def bake(obj,paragraph,text,width,height,font_size,flags):
         nonlocal handle
         w=max(1,int(width*.75+.5));h=max(1,int(height*.75+.5))
-        font=ImageFont.truetype(str(Path(os.environ.get('FNAF_FONT_DIR','C:/Windows/Fonts'))/'consola.ttf'),int(font_size*.75+.5))
+        font=ImageFont.truetype(str(font_path),int(font_size*.75+.5))
         value=wrapped(text,font,w)
         im=Image.new('RGBA',(w,h));draw=ImageDraw.Draw(im)
         box=draw.multiline_textbbox((0,0),value,font=font,spacing=2)

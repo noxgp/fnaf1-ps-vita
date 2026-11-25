@@ -1,6 +1,8 @@
 /build/
 /data/
 /prepared/
+/fonts/
+/.venv/
 /out/
 /.tools/
 /private/

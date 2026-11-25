@@ -47,6 +47,35 @@ def verify_output(folder):
     print(f"Verified {len(manifest['files'])} local files.",flush=True)
     return manifest
 
+def resolve_fonts(font_dir=None):
+    from PIL import ImageFont
+
+    bundled = ROOT / "third_party/fonts/Cousine-Regular.ttf"
+    folder = Path(font_dir).expanduser().resolve() if font_dir is not None else None
+    if os.name == "nt":
+        folder = folder or Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
+        menu = folder / "consola.ttf"
+        captions = {"default": folder / "tahoma.ttf", "ja-JP": folder / "YuGothM.ttc",
+                    "zh-CHS": folder / "simsun.ttc", "ko-KR": folder / "malgun.ttf"}
+        instructions = "Install the Windows language fonts or point --font-dir to them."
+    else:
+        folder = folder or ROOT / "fonts"
+        menu = bundled
+        captions = {"default": bundled, "ja-JP": folder / "NotoSansCJKjp-Regular.otf",
+                    "zh-CHS": folder / "NotoSansCJKsc-Regular.otf",
+                    "ko-KR": folder / "NotoSansCJKkr-Regular.otf"}
+        instructions = "Download the Noto Sans CJK fonts listed in the macOS and Linux installation guide."
+
+    for font in dict.fromkeys([menu, *captions.values(), bundled]):
+        if not font.is_file():
+            raise ValueError(f"Required font missing: {font}. {instructions}")
+        try:
+            ImageFont.truetype(str(font), 24)
+        except OSError as exc:
+            raise ValueError(f"Could not open font: {font}. {instructions}") from exc
+    return menu, captions, bundled
+
+
 def prepare(apk,output,work,ffmpeg=None,font_dir=None,ui_only=False):
     apk=Path(apk).resolve();output=Path(output).resolve();work=Path(work).resolve()
     if not apk.is_file():raise ValueError('APK file not found')
@@ -58,11 +87,7 @@ def prepare(apk,output,work,ffmpeg=None,font_dir=None,ui_only=False):
         ccn_hash=hashlib.sha256(z.read(info)).hexdigest()
     if ccn_hash!=SUPPORTED_CCN_SHA256:
         raise ValueError('Unsupported game-data revision. Expected Android 2.0.7 CCN SHA-256 '+SUPPORTED_CCN_SHA256+'; got '+ccn_hash+'. Other APK revisions need a separate compatibility update.')
-    font_dir=Path(font_dir or os.environ.get('WINDIR','C:/Windows')+'/Fonts').resolve()
-    from PIL import ImageFont
-    for name in ('consola.ttf','tahoma.ttf','YuGothM.ttc','simsun.ttc','malgun.ttf'):
-        if not (font_dir/name).is_file():raise ValueError('Required local font missing: '+str(font_dir/name)+'. Install the relevant Windows language fonts or use --font-dir.')
-        ImageFont.truetype(str(font_dir/name),24)
+    menu_font, caption_fonts, native_font = resolve_fonts(font_dir)
     ffmpeg=str(Path(ffmpeg).resolve()) if ffmpeg else shutil.which('ffmpeg')
     if not ffmpeg or not Path(ffmpeg).is_file():raise ValueError('FFmpeg not found; add it to PATH or use --ffmpeg PATH')
     sentinel=work/'asset-work.json'
@@ -71,8 +96,8 @@ def prepare(apk,output,work,ffmpeg=None,font_dir=None,ui_only=False):
             raise ValueError('Work folder is not a matching asset workspace; choose a new empty folder')
     work.mkdir(parents=True,exist_ok=True);(work/'build').mkdir(exist_ok=True)
     sentinel.write_text(json.dumps(dict(ccn_sha256=ccn_hash,tool_version=VERSION)),encoding='utf-8')
-    os.environ['FNAF_FFMPEG']=ffmpeg;os.environ['FNAF_FONT_DIR']=str(font_dir)
-    os.environ['FNAF_NATIVE_FONT']=str(ROOT/'third_party/fonts/Cousine-Regular.ttf')
+    os.environ['FNAF_FFMPEG']=ffmpeg
+    os.environ['FNAF_NATIVE_FONT']=str(native_font)
     import extract_apk,decode_scenes,audit_events,compile_scenes
     import prepare_game,prepare_android_ui,prepare_presentation,prepare_sprite_atlas
     data=work/'data'
@@ -86,7 +111,9 @@ def prepare(apk,output,work,ffmpeg=None,font_dir=None,ui_only=False):
     prepare_game.compile_rules();prepare_game.sprites();prepare_game.audio()
     print('3/6 Preparing UI and all subtitle languages...',flush=True)
     compile_scenes.compile_data(data,work/'build/generated_scene_data.h',[0,3,4,5])
-    prepare_android_ui.prepare();prepare_presentation.font_atlas();prepare_presentation.subtitle_pack()
+    prepare_android_ui.prepare(menu_font)
+    prepare_presentation.font_atlas()
+    prepare_presentation.subtitle_pack(caption_fonts)
     prepare_presentation.scare_budget();prepare_presentation.cache_layout()
     ui=work/'build/android-ui';cues=json.loads((ui/'subtitles.json').read_text(encoding='utf-8'))
     cues.sort(key=lambda c:c['handle']);assert len(cues)==2180
@@ -99,7 +126,7 @@ def prepare(apk,output,work,ffmpeg=None,font_dir=None,ui_only=False):
         shutil.copytree(data/'native/sprites',output/'sprites',dirs_exist_ok=True)
         shutil.copytree(data/'native/audio',output/'audio',dirs_exist_ok=True)
     (output/'ui').mkdir(exist_ok=True)
-    manifest=json.loads((ui/'manifest.json').read_text());atlas=json.loads((ui/'sprite-atlas.json').read_text())
+    manifest=json.loads((ui/'manifest.json').read_text(encoding='utf-8'));atlas=json.loads((ui/'sprite-atlas.json').read_text(encoding='utf-8'))
     for t in manifest['textures']+atlas['pages']:
         name=f"{t['handle']:04d}.rgba";shutil.copy2(ui/name,output/'ui'/name)
     for name in ('subtitles.pack','subtitles.idx','manifest.json','sprite-atlas.json'):
@@ -123,7 +150,8 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--apk',type=Path);p.add_argument('--output',type=Path,default=ROOT/'prepared/fnaf1')
     p.add_argument('--work-dir',type=Path,default=ROOT/'build/asset-work')
-    p.add_argument('--ffmpeg',type=Path);p.add_argument('--font-dir',type=Path)
+    p.add_argument('--ffmpeg',type=Path)
+    p.add_argument('--font-dir',type=Path,help='Directory with the fonts named in the installation guide')
     p.add_argument('--ui-only',action='store_true',help='Prepare only the UI update for an existing complete v2 data installation')
     p.add_argument('--verify',type=Path,help='Verify an already prepared fnaf1 folder; no APK required')
     a=p.parse_args()

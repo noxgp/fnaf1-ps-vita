@@ -48,11 +48,15 @@ def wrap(block,font):
         rows.append(current)
     return '\n'.join(rows)
 
-def subtitle_pack():
+def subtitle_pack(font_paths=None):
     cues=[];handle=1024;packed=bytearray();shared={}
     for language,lang in enumerate(LANGS):
-        filename='YuGothM.ttc' if lang=='ja-JP' else 'simsun.ttc' if lang=='zh-CHS' else 'malgun.ttf' if lang=='ko-KR' else 'tahoma.ttf'
-        font=ImageFont.truetype(str(Path(os.environ.get('FNAF_FONT_DIR','C:/Windows/Fonts'))/filename),24)
+        if font_paths is None:
+            names = {'ja-JP': 'YuGothM.ttc', 'zh-CHS': 'simsun.ttc', 'ko-KR': 'malgun.ttf'}
+            font_path = Path(os.environ.get('FNAF_FONT_DIR', 'C:/Windows/Fonts')) / names.get(lang, 'tahoma.ttf')
+        else:
+            font_path = font_paths.get(lang, font_paths['default'])
+        font = ImageFont.truetype(str(font_path), 24)
         for track,name in enumerate(['forced','voiceover1c','voiceover2a','voiceover3','voiceover4']):
             entries=[]
             content=sections((ROOT/'data/embedded'/f'subtitles_{lang}_{name}.txt').read_text(encoding='utf-8-sig'))
@@ -102,7 +106,7 @@ def subtitle_pack():
     lines=['typedef struct {unsigned offset,size;unsigned short width,height;} PackedSubtitle;',
            'static const PackedSubtitle packed_subtitles[]={'+','.join('{%d,%d,%d,%d}'%tuple(c[k] for k in ('offset','compressed_size','width','height')) for c in sorted(cues,key=lambda c:c['handle']))+'};']
     (ROOT/'build/generated_subtitle_pack.h').write_text('\n'.join(lines),encoding='ascii')
-    print(f'Original fonts prepared; {len(cues)} caption masks in {len(packed):,} bytes, existing data unchanged')
+    print(f'Subtitles prepared; {len(cues)} caption masks in {len(packed):,} bytes, existing data unchanged')
 
 def scare_budget():
     report=json.loads((ROOT/'data/report.json').read_text(encoding='utf-8'))

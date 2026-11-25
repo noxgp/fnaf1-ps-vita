@@ -22,7 +22,7 @@ Unofficial native PS Vita adaptation using Five Nights at Freddy's Android game 
 
 Installation note:
 
-Install the VPK, run the Windows/Python Data Tool against an owned supported APK, and copy the generated fnaf1 folder to ux0:data/. Keep progress.sav/progress.bak when upgrading. The downloader must not fetch or redistribute original game files.
+Install the VPK, run the Data Tool against an owned supported APK, and copy the generated fnaf1 folder to ux0:data/. The [installation guide](https://github.com/noxgp/fnaf1-ps-vita#installation) covers Windows, macOS and Linux. Keep progress.sav/progress.bak when upgrading. The downloader must not fetch or redistribute original game files.
 
 Checklist:
 
