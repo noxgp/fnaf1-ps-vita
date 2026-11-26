@@ -11,7 +11,7 @@ from generate_public_art import prepare
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = '1.0.5'
-APP_VERSION = '00.28'
+APP_VERSION = '00.27'
 APP_TITLE = "Five Nights At Freddy's"
 NAME = f'FNAF1-Vita-v{VERSION}.vpk'
 LIVEAREA = 'sce_sys/livearea/contents/'

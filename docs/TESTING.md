@@ -1,6 +1,6 @@
 # Release validation
 
-## Update 4 Hotfix (v1.0.5 / APP_VER 00.28)
+## Update 5 (v1.0.5 / APP_VER 00.27)
 
 - Python format tests and the ARM core, renderer, asset reader, audio and UI regressions passed.
 - The tests cover keeping all four light views resident, activating the light while a door closes with an animatronic outside, preloading jumpscare openings, and continuing the animation when a later frame is missing.

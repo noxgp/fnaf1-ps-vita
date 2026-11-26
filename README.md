@@ -6,9 +6,9 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v1.0.5 (Update 4 Hotfix)` · **Vita application version:** `00.28` · **Title ID:** `FNAFSCN01`
+**Release:** `v1.0.5 (Update 5)` · **Vita application version:** `00.27` · **Title ID:** `FNAFSCN01`
 
-[Download v1.0.5](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.5) · [Patch notes](RELEASE-NOTES.md)
+[Download Update 5](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.5) · [Patch notes](RELEASE-NOTES.md)
 
 ## Features
 
@@ -115,7 +115,7 @@ If the Vita reports **Old Game Data Format** or your sprites or audio are incomp
 
 ## Known limitations
 
-- **Testing.** Build 00.28 passed automated regression checks. Hardware timing for its door light and jumpscare changes is pending. See [testing](docs/TESTING.md) for details.
+- **Testing.** Build 00.27 passed automated regression checks. Hardware timing for its door light and jumpscare changes is pending. See [testing](docs/TESTING.md) for details.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**

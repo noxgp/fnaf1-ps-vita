@@ -1,12 +1,12 @@
 # VitaDB listing details
 
-Use this information when submitting the Update 4 hotfix or updating the existing VitaDB listing.
+Use this information when submitting Update 5 or updating the existing VitaDB listing.
 
 | Field | Value |
 | --- | --- |
 | Name | Five Nights At Freddy's |
 | Author | nox |
-| Version | 1.0.5 (Vita APP_VER 00.28) |
+| Version | 1.0.5 (Vita APP_VER 00.27) |
 | Title ID | FNAFSCN01 |
 | Category | Game port / unofficial native adaptation |
 | Source | https://github.com/noxgp/fnaf1-ps-vita |
