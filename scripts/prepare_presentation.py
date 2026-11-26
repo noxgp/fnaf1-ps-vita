@@ -143,9 +143,9 @@ def cache_layout():
     for obj in (60,61):
         for a in objects[obj]['common']['animations']:
             if a['animation'] in (12,14):critical.update(a['directions'][0]['images'])
-    # Both grey/green button frames, map/labels and every monitor frame remain
-    # resident even when that button or animation is not currently displayed.
-    for obj in (69,73,*range(74,88)):
+    # Keep monitor frames, map labels and all four office light overlays ready.
+    # A press or an animatronic moving should never have to load an overlay.
+    for obj in (69,73,*range(74,88),134):
         for a in objects[obj]['common']['animations']:
             for direction in a['directions']:critical.update(direction['images'])
     atlas=prepare_sprite_atlas()

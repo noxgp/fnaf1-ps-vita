@@ -16,6 +16,7 @@ static unsigned clock_time;
 enum { PAUSE_X = 105, PAUSE_Y = 200, PAUSE_ROW = 48, PAUSE_HIT_WIDTH = 230 };
 enum { FOX_RUN_ANIMATION = 51, FOX_RUN_FPS = 39, FOX_LOOKAHEAD = 8 };
 enum { CAMERA_CUT_OBJECT = 53, CAMERA_CUT_NOISE_MS = 100 };
+enum { NORMAL_SCARE_COUNT = 4, SCARE_LOOKAHEAD = 4 };
 static void image(int handle, float x, float y, float w, float h, unsigned color, int perspective) {
     gpu_queue_image(handle, x, y, w, h, color, perspective);
 }
@@ -136,23 +137,26 @@ int game_view_loading(const Game *g) {
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             if (!gpu_texture_ready(control_textures[i]))
                 return 1;
+        for (int k = 0; k < NORMAL_SCARE_COUNT; ++k)
+            if (!gpu_texture_ready(scare_animation(k)->frames[0]))
+                return 1;
     }
     if (g->phase == G_OUTAGE && g->outage_stage < 2)
         return !gpu_texture_ready(395) || !gpu_texture_ready(396);
     if (g->phase == G_SCARE) {
         const ScareAnimation *a = scare_animation(g->killer);
-        if (!a)
-            return !gpu_texture_ready(573);
-        for (int f = 0; f < a->count; ++f)
-            if (!gpu_texture_ready(a->frames[f]))
-                return 1;
+        return !gpu_texture_ready(a ? a->frames[0] : 573);
     }
     return 0;
 }
+static void keep_scare_openings(void) {
+    for (int k = 0; k < NORMAL_SCARE_COUNT; ++k)
+        gpu_queue_resident(scare_animation(k)->frames[0]);
+}
 static void warm_scares(const Game *g) {
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < NORMAL_SCARE_COUNT; ++k) {
         const ScareAnimation *a = scare_animation(k);
-        for (int f = 0; f < 3; ++f)
+        for (int f = 1; f < 3; ++f)
             gpu_queue_prefetch(a->frames[f]);
     }
     int threat = -1;
@@ -314,6 +318,8 @@ static void outage_room(const Game *g, unsigned ms) {
     const ScareAnimation *outage = scare_animation(SCARE_POWER_OUT);
     for (int f = 0; f < outage->count; ++f)
         gpu_queue_resident(outage->frames[f]);
+    if (!gpu_texture_ready(outage->frames[0]))
+        gpu_queue_focus(outage->frames[0]);
     if (g->outage_stage >= 2)
         return;
     gpu_queue_resident(395);
@@ -356,6 +362,49 @@ static void radar_map(const Game *g) {
             image(markers[i], x + i * 16, y, 14, 14, 0xffffffffu, 0);
     }
 }
+static void draw_scare(const Game *g) {
+    const ScareAnimation *a = scare_animation(g->killer);
+    if (!a) {
+        screen(573, 0xffffffffu);
+        return;
+    }
+
+    int f = scare_frame(g->killer, g->phase_ms);
+    int first = a->frames[0];
+    for (int i = 0; i < a->count; ++i)
+        gpu_queue_warm(a->frames[i]);
+    gpu_queue_resident(first);
+    for (int i = 1; i <= SCARE_LOOKAHEAD; ++i) {
+        int next = f + i;
+        if (!a->loop && next >= a->count)
+            break;
+        gpu_queue_resident(a->frames[next % a->count]);
+    }
+    int opening_ready = gpu_texture_ready(first);
+    gpu_queue_focus(opening_ready ? a->frames[f] : first);
+    if (!opening_ready) {
+        if (g->killer != SCARE_POWER_OUT)
+            room(g);
+        return;
+    }
+
+    // Keep the closest loaded frame on screen while the current one streams.
+    while (!gpu_texture_ready(a->frames[f]))
+        --f;
+    int handle = a->frames[f];
+    if (g->killer == SCARE_POWER_OUT) {
+        sprite_at(handle, 0, 0);
+    } else {
+        const ImageDef *im = scene_image(handle);
+        if (g->killer == 3) {
+            image(298, 0, 2, 1200, 540, 0xffffffffu, 0);
+            if (im)
+                image(handle, -im->hotspot_x * .75f, 2 - im->hotspot_y * .75f,
+                      im->width * .75f, im->height * .75f, 0xffffffffu, 0);
+        } else
+            image(handle, -120, 2, im ? im->width * .75f : 1200, 540, 0xffffffffu, 0);
+    }
+}
 static int night_card_loading;
 void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int preparing_night) {
     clock_time = ms;
@@ -375,6 +424,7 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             gpu_queue_resident(control_textures[i]);
         if (g->return_phase != G_OUTAGE) {
+            keep_scare_openings();
             for (unsigned i = 0; i < sizeof(camera_noise_images) / sizeof(*camera_noise_images);
                  ++i)
                 gpu_queue_resident(camera_noise_images[i]);
@@ -382,12 +432,11 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                 gpu_queue_warm(scene_art(CAMERA_CUT_OBJECT, 0, f));
         }
     }
-    if (phase == G_INTRO || (phase == G_PLAY && !g->monitor)) {
+    if (phase == G_INTRO || phase == G_PLAY)
         warm_scares(g);
-        if (g->save.options.radar)
-            for (int i = 0; i < 4; ++i)
-                gpu_queue_warm(radar_portraits[i]);
-    }
+    if (g->save.options.radar && (phase == G_INTRO || (phase == G_PLAY && !g->monitor)))
+        for (int i = 0; i < 4; ++i)
+            gpu_queue_warm(radar_portraits[i]);
     if (phase == G_PLAY && g->fox >= 2 && g->fox < 4)
         warm_fox_run(0);
     if (phase == G_NEWSPAPER || phase == G_INTRO || (phase == G_PLAY && !gpu_texture_ready(591)))
@@ -545,34 +594,9 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
         }
     } else if (phase == G_CREEPY_END)
         screen(548, 0xffffffffu);
-    else if (phase == G_SCARE) {
-        const ScareAnimation *a = scare_animation(g->killer);
-        if (g->killer == 4)
-            screen(573, 0xffffffffu);
-        else if (a) {
-            int f = scare_frame(g->killer, g->phase_ms);
-            const ImageDef *im = scene_image(a->frames[f]);
-            /* Protect every frame from LRU eviction, not just the displayed one. */
-            for (int j = 0; j < a->count; ++j)
-                gpu_queue_resident(a->frames[j]);
-            if (g->killer == SCARE_POWER_OUT) {
-                /* Scene 08-freddy starts on black at (0,0). Keep black until
-                 * the complete sequence is resident; never fall back to room. */
-                if (!game_view_loading(g))
-                    sprite_at(a->frames[f], 0, 0);
-            } else {
-                if (!gpu_texture_ready(a->frames[f]))
-                    room(g);
-                if (g->killer == 3) {
-                    image(298, 0, 2, 1200, 540, 0xffffffffu, 0);
-                    if (im)
-                        image(a->frames[f], -im->hotspot_x * .75f, 2 - im->hotspot_y * .75f,
-                              im->width * .75f, im->height * .75f, 0xffffffffu, 0);
-                } else
-                    image(a->frames[f], -120, 2, im ? im->width * .75f : 1200, 540, 0xffffffffu, 0);
-            }
-        }
-    } else if (phase == G_DEAD) {
+    else if (phase == G_SCARE)
+        draw_scare(g);
+    else if (phase == G_DEAD) {
         screen(358, 0xffffffffu);
         image(471, 784.5f, 497, 154.5f, 20.25f, 0xffffffffu, 0);
     } else if (phase == G_ENDING) {

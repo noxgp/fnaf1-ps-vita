@@ -1,3 +1,20 @@
+# Update 4 Hotfix (v1.0.5)
+
+Vita app version `00.28` · Title ID `FNAFSCN01`
+
+Thanks to the players who reported the door light delay, jumpscare stalls, and main menu reset.
+
+- **Door lights.** Preloads all four lit views, including the ones with Bonnie or Chica at the door. Toggling a light while a door is closing no longer has to load the lighting image from storage. The short, irregular light flicker remains.
+- **Jumpscares.** Preloads the opening frames during the night. The scene and its audio can start as soon as the opening frame is ready, while the later frames stream during playback. If a frame is late, the renderer holds the closest loaded frame while the animation timer advances.
+- **Main menu.** Pressing Circle on the title screen leaves the selection, animation, and music in place. Circle still returns from submenus.
+- **Older installations.** Startup messages distinguish a missing public UI pack from a game-data format that needs a fresh preparation. Retrying after copying the data reloads any existing save.
+
+If you already have a public release, install the new VPK over it in VitaShell and keep `ux0:data/fnaf1/` and your saves. Fresh installs require your own supported Android 2.0.7 copy. [Installation and upgrade guide](https://github.com/noxgp/fnaf1-ps-vita#installation)
+
+Automated checks passed for the lighting frames, jumpscare startup and frame fallback, Circle, and the older data layouts. Hardware timing for this build is pending. [Testing details](https://github.com/noxgp/fnaf1-ps-vita/blob/main/docs/TESTING.md)
+
+---
+
 # Update 4 (v1.0.4)
 
 Vita app version `00.26` · Title ID `FNAFSCN01`

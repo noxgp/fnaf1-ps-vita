@@ -6,9 +6,9 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v1.0.4 (Update 4)` · **Vita application version:** `00.26` · **Title ID:** `FNAFSCN01`
+**Release:** `v1.0.5 (Update 4 Hotfix)` · **Vita application version:** `00.28` · **Title ID:** `FNAFSCN01`
 
-[Download Update 4](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.4) · [Patch notes](RELEASE-NOTES.md)
+[Download v1.0.5](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.5) · [Patch notes](RELEASE-NOTES.md)
 
 ## Features
 
@@ -99,25 +99,27 @@ The prepared folder contains the game's files. Keep it for yourself. Don't uploa
 
 ### Upgrading from a previous public release
 
-Install the new VPK over the existing version with VitaShell. The prepared game-data format is the same, so keep `ux0:data/fnaf1/` and its saves in place.
+Install the new VPK over your existing version with VitaShell. Keep `ux0:data/fnaf1/` and your saves in place. Use the latest VPK for the current fixes. [Latest release](https://github.com/noxgp/fnaf1-ps-vita/releases/latest)
 
-### Upgrading from the private 00.16 build
+### Upgrading from older private builds
 
-Keep `ux0:data/fnaf1/progress.sav` and `progress.bak`, and don't uninstall the game. The public build loads its menu graphics from the data folder, so prepare a UI-only update into an empty folder:
+Keep a backup of `ux0:data/fnaf1/progress.sav` and `progress.bak` before copying data. If you have complete Game Data v2 from a private build such as 00.16 and the Vita asks for a UI update, prepare the missing public UI in an empty folder with `--ui-only`. This example uses Windows.
 
 ```powershell
 py -3 prepare_assets.py --apk "C:\Games\your-copy.apk" --ui-only --output "prepared-ui/fnaf1" --ffmpeg "C:\Tools\ffmpeg.exe"
 ```
 
-Merge it into `ux0:data/fnaf1/`, then install the new VPK.
+On macOS and Linux, use `.venv/bin/python` and your local APK path with the same `--ui-only` and `--output` options. Merge the prepared UI into `ux0:data/fnaf1/`, then install the new VPK.
+
+If the Vita reports **Old Game Data Format** or your sprites or audio are incomplete, follow the full installation steps above. Copy the newly prepared `fnaf1` folder and restore your backed-up saves.
 
 ## Known limitations
 
-- **Testing.** Build 00.26 passed automated regression checks. The maintainer tested build 00.25 on a physical PS Vita. See [testing](docs/TESTING.md) for details.
+- **Testing.** Build 00.28 passed automated regression checks. Hardware timing for its door light and jumpscare changes is pending. See [testing](docs/TESTING.md) for details.
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**
-- **Loading.** The first time a camera is opened, its image depends on memory card speed. A jumpscare may briefly wait to load the first time.
+- **Loading.** The first time a camera is opened, its image depends on memory card speed. Jumpscares have preloaded opening frames, and later frames may briefly hold on slower cards.
 - **No vibration on the handheld**, because the Vita has no rumble motor. Vibration targets supported paired controllers.
 
 ## Building from source

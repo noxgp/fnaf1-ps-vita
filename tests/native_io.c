@@ -1,36 +1,67 @@
 /* Test-only stdio fixtures for checking the real external-data loader on ARM. */
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include "data_files.h"
 
 int io_fixture;
 int io_bad_path;
+static const char *contents;
+
+static int starts_with(const char *path, const char *prefix) {
+    while (*prefix && *path == *prefix) {
+        ++path;
+        ++prefix;
+    }
+    return !*prefix;
+}
+
+static const char *public_file(const char *path) {
+    if (!strcmp(path, FNAF_DATA_ROOT "game.version")) {
+        if (io_fixture == 6)
+            return NULL;
+        return io_fixture == 10 ? "OTHER-GAME-DATA\n" : FNAF_GAME_DATA_VERSION "\n";
+    }
+    if (!strcmp(path, FNAF_DATA_ROOT "data.version"))
+        return FNAF_DATA_VERSION "\n";
+    if (io_fixture == 9 && !strcmp(path, FNAF_DATA_ROOT "sprites/0029.rgba"))
+        return NULL;
+    if (starts_with(path, FNAF_DATA_ROOT "sprites/"))
+        return "FSPI........";
+    if (!strcmp(path, FNAF_DATA_ROOT "public-ui.version"))
+        return io_fixture == 7 ? NULL : FNAF_PUBLIC_UI_VERSION "\n";
+    if (!strcmp(path, FNAF_DATA_ROOT "ui/subtitles.idx"))
+        return io_fixture == 11 ? NULL : "FCIX........";
+    if (!strcmp(path, FNAF_DATA_ROOT "ui/subtitles.pack"))
+        return "ok";
+    if (starts_with(path, FNAF_DATA_ROOT "ui/"))
+        return "FSPI........";
+    io_bad_path = 1;
+    return NULL;
+}
 
 FILE *fopen(const char *path, const char *mode) {
-    const char *expected = FNAF_DATA_ROOT "data.version";
-    size_t i = 0;
-    while (expected[i] && path[i] == expected[i])
-        ++i;
-    if (expected[i] != path[i] || mode[0] != 'r' || mode[1] != 'b' || mode[2])
+    static const char *const scene_versions[] = {
+        NULL, FNAF_DATA_VERSION "\n", "OTHER-DATA-VERSION\n", "",
+        FNAF_DATA_VERSION "\r\n", FNAF_DATA_VERSION "extra",
+    };
+    if (strcmp(mode, "rb"))
         io_bad_path = 1;
-    return io_fixture == 0 ? NULL : (FILE *)1;
+    if (io_fixture < 6) {
+        if (strcmp(path, FNAF_DATA_ROOT "data.version"))
+            io_bad_path = 1;
+        contents = scene_versions[io_fixture];
+    } else
+        contents = public_file(path);
+    return contents ? (FILE *)1 : NULL;
 }
 
 size_t fread(void *output, size_t size, size_t count, FILE *file) {
     (void)file;
-    const char *value = FNAF_DATA_VERSION "\n";
-    if (io_fixture == 2)
-        value = "OTHER-DATA-VERSION\n";
-    if (io_fixture == 3)
-        value = "";
-    if (io_fixture == 4)
-        value = FNAF_DATA_VERSION "\r\n";
-    if (io_fixture == 5)
-        value = FNAF_DATA_VERSION "extra";
     size_t used = 0;
     unsigned char *bytes = (unsigned char *)output;
-    while (value[used] && used < size * count) {
-        bytes[used] = (unsigned char)value[used];
+    while (used < size * count && contents[used]) {
+        bytes[used] = (unsigned char)contents[used];
         ++used;
     }
     return size ? used / size : 0;

@@ -1,5 +1,12 @@
 # Release validation
 
+## Update 4 Hotfix (v1.0.5 / APP_VER 00.28)
+
+- Python format tests and the ARM core, renderer, asset reader, audio and UI regressions passed.
+- The tests cover keeping all four light views resident, activating the light while a door closes with an animatronic outside, preloading jumpscare openings, and continuing the animation when a later frame is missing.
+- Title-screen Circle preserves the selection, timer and audio state. The data checks distinguish public data, legacy data that needs only the public UI, incomplete files, and incompatible versions.
+- A physical Vita result for this build has yet to be recorded.
+
 ## Update 4 (v1.0.4 / APP_VER 00.26)
 
 - Python format tests and ARM core, renderer, asset reader, audio and UI regressions passed.

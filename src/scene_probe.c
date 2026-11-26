@@ -24,66 +24,24 @@ static int runtime_loading(void) {
     return (game.phase == G_TITLE && !title_revealed) ||
            (game.phase == G_PLAY && !game_audio_ready()) || game_view_loading(&game);
 }
-static int public_ui_data(void) {
-    const int ids[] = {7000, 7007, 7800, 7801};
-    unsigned char b[12];
-    for (unsigned i = 0; i < sizeof(ids) / sizeof(*ids); ++i) {
-        char path[96];
-        snprintf(path, sizeof(path), FNAF_DATA_ROOT "ui/%04d.rgba", ids[i]);
-        FILE *f = fopen(path, "rb");
-        if (!f)
-            return 1;
-        size_t n = fread(b, 1, 12, f);
-        fclose(f);
-        if (n != 12 || memcmp(b, "FSPI", 4))
-            return 1;
+static void draw_data_help(int status) {
+    gpu_begin();
+    if (status == FNAF_DATA_NEEDS_UI) {
+        gpu_text(80, 150, "PUBLIC UI UPDATE REQUIRED", 0xffffffffu);
+        gpu_text(80, 205, "USE THE DATA TOOL WITH --UI-ONLY", 0xffffffffu);
+        gpu_text(80, 250, "MERGE INTO UX0:DATA/FNAF1/ AND KEEP YOUR SAVES", 0xffffffffu);
+    } else {
+        const char *title = status == FNAF_DATA_INCOMPATIBLE ? "OLD GAME DATA FORMAT"
+                                                             : "GAME DATA REQUIRED";
+        gpu_text(80, 150, title, 0xffffffffu);
+        gpu_text(80, 205, "PREPARE DATA FROM YOUR OWN ANDROID COPY", 0xffffffffu);
+        gpu_text(80, 250, "COPY FNAF1 FOLDER TO UX0:DATA/ AND KEEP YOUR SAVES", 0xffffffffu);
     }
-    FILE *f = fopen(FNAF_DATA_ROOT "ui/subtitles.idx", "rb");
-    if (!f)
-        return 1;
-    size_t n = fread(b, 1, 12, f);
-    fclose(f);
-    if (n != 12 || memcmp(b, "FCIX", 4))
-        return 1;
-    f = fopen(FNAF_DATA_ROOT "ui/subtitles.pack", "rb");
-    if (!f)
-        return 1;
-    n = fread(b, 1, 2, f);
-    fclose(f);
-    return n != 2;
+    gpu_text(80, 300, "GITHUB.COM/NOXGP/FNAF1-PS-VITA", 0xffffffffu);
+    gpu_text(80, 360, "CROSS: RETRY  START: EXIT", 0xffffffffu);
+    gpu_end();
 }
-static int game_data(void) {
-    if (public_ui_data())
-        return 1;
-    char b[32] = {0};
-    FILE *f = fopen(FNAF_DATA_ROOT "game.version", "rb");
-    if (!f)
-        return 1;
-    size_t n = fread(b, 1, 31, f);
-    fclose(f);
-    if (n != 18 || memcmp(b, "FNAF1-GAME-DATA-2\n", 18))
-        return 1;
-    f = fopen(FNAF_DATA_ROOT "public-ui.version", "rb");
-    if (!f)
-        return 1;
-    n = fread(b, 1, 31, f);
-    fclose(f);
-    if (n != 18 || memcmp(b, "FNAF1-PUBLIC-UI-1\n", 18))
-        return 1;
-    const int required[] = {591, 18, 59, 45, 56, 90, 307, 103, 40, 344, 301, 574};
-    for (unsigned i = 0; i < sizeof(required) / sizeof(*required); ++i) {
-        char path[96];
-        snprintf(path, sizeof(path), FNAF_DATA_ROOT "sprites/%04d.rgba", required[i]);
-        f = fopen(path, "rb");
-        if (!f)
-            return 1;
-        n = fread(b, 1, 12, f);
-        fclose(f);
-        if (n != 12 || memcmp(b, "FSPI", 4))
-            return 1;
-    }
-    return 0;
-}
+
 static int load_save(GameSave *save, const char *path) {
     unsigned char bytes[128];
     FILE *f = fopen(path, "rb");
@@ -94,6 +52,13 @@ static int load_save(GameSave *save, const char *path) {
     fclose(f);
     return n == 128 && end == EOF ? game_decode_save(save, bytes) : -1;
 }
+
+static void read_progress(GameSave *save) {
+    game_defaults(save);
+    if (load_save(save, FNAF_DATA_ROOT "progress.sav"))
+        load_save(save, FNAF_DATA_ROOT "progress.bak");
+}
+
 static int write_save(const GameSave *save) {
     unsigned char bytes[128];
     game_encode_save(save, bytes);
@@ -164,19 +129,17 @@ int main(void) {
             area = (TouchArea){panel.minAaX, panel.minAaY, panel.maxAaX, panel.maxAaY};
     }
     GameSave save;
-    game_defaults(&save);
-    if (load_save(&save, FNAF_DATA_ROOT "progress.sav"))
-        load_save(&save, FNAF_DATA_ROOT "progress.bak");
+    read_progress(&save);
     uint64_t now = sceKernelGetSystemTimeWide(), last = now, fps_time = now, next_save = 0;
     game_init(&game, &save, (uint32_t)now);
     SceDateTime date = {0};
     if (!sceRtcGetCurrentClockLocalTime(&date))
         game_set_date(&game, date.month, date.day);
-    int missing = game_data(), save_error = 0, rumbling = 0;
+    int data_status = fnaf_game_data_check(), save_error = 0, rumbling = 0;
     unsigned previous = 0, accum = 0, frames = 0, fps = 0, clock_ms = 0, microseconds = 0;
     GameSound pending_audio[AUDIO_VOICES] = {0};
     unsigned pending_channels = 0;
-    if (!missing)
+    if (data_status == FNAF_DATA_READY)
         game_audio_start();
     while (!game.quit) {
         if (game.phase != G_TITLE)
@@ -185,20 +148,18 @@ int main(void) {
         sceCtrlPeekBufferPositive(0, &pad, 1);
         unsigned pressed = pad.buttons & ~previous;
         previous = pad.buttons;
-        if (missing) {
+        if (data_status != FNAF_DATA_READY) {
             if (pressed & SCE_CTRL_START)
                 break;
             if (pressed & SCE_CTRL_CROSS) {
-                missing = game_data();
-                if (!missing)
+                data_status = fnaf_game_data_check();
+                if (data_status == FNAF_DATA_READY) {
+                    read_progress(&game.save);
                     game_audio_start();
+                }
             }
-            gpu_begin();
-            gpu_text(80, 150, "GAME DATA REQUIRED", 0xffffffffu);
-            gpu_text(80, 205, "PREPARE DATA FROM YOUR OWN ANDROID COPY", 0xffffffffu);
-            gpu_text(80, 250, "COPY FNAF1 FOLDER TO UX0:DATA/", 0xffffffffu);
-            gpu_text(80, 320, "CROSS: RETRY  START: EXIT", 0xffffffffu);
-            gpu_end();
+            if (data_status != FNAF_DATA_READY)
+                draw_data_help(data_status);
             last = sceKernelGetSystemTimeWide();
             continue;
         }

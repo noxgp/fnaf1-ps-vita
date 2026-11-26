@@ -585,7 +585,7 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
                 phase(g, g->options_parent);
         } else if (g->phase == G_AUDIO_OPTIONS) {
             phase(g, G_OPTIONS);
-        } else
+        } else if (g->phase != G_TITLE)
             title(g);
         return;
     }

@@ -95,6 +95,15 @@ int run_checks(void) {
     io_fixture = 5;
     if (fnaf_data_check() != FNAF_DATA_INCOMPATIBLE)
         return 26;
+    static const int game_data_results[] = {
+        FNAF_DATA_INCOMPATIBLE, FNAF_DATA_NEEDS_UI, FNAF_DATA_READY,
+        FNAF_DATA_MISSING, FNAF_DATA_INCOMPATIBLE, FNAF_DATA_NEEDS_UI,
+    };
+    for (int i = 0; i < 6; ++i) {
+        io_fixture = 6 + i;
+        if (fnaf_game_data_check() != game_data_results[i])
+            return 81 + i;
+    }
     if (io_bad_path)
         return 27;
     MenuUI ui;

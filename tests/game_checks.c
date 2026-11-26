@@ -348,6 +348,11 @@ int run_game_checks(void) {
     game_init(&g, &s, 123);
     game_input(&g, IN_OK, 0, 0);
     CHECK(g.phase == G_TITLE, 89);
+    g.selection = 1;
+    g.phase_ms = 1200;
+    g.sound_count = 0;
+    game_input(&g, IN_BACK, 0, 0);
+    CHECK(g.phase == G_TITLE && g.selection == 1 && g.phase_ms == 1200 && !g.sound_count, 236);
     game_input(&g, IN_HELP, 0, 0);
     CHECK(g.diagnostics, 90);
     game_start(&g, 1);

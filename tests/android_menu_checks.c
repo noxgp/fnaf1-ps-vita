@@ -8,7 +8,8 @@
 #include "camera_map.h"
 #include "game_events.h"
 #include "generated_controls.h"
-extern int capture_commands[96][7], capture_count;
+extern int capture_commands[96][7], capture_count, capture_focus_handle;
+extern unsigned char capture_demanded[8192];
 static Game g;
 static void fresh(void) {
     GameSave s;
@@ -226,9 +227,15 @@ int run_presentation_checks(void) {
         const ScareAnimation *a = scare_animation(k);
         capture_resident_count = 0;
         view();
-        CHECK(capture_resident_count == a->count && !game_view_loading(&g), 59);
-        capture_missing_handle = a->frames[a->count - 1];
-        CHECK(game_view_loading(&g), 60);
+        int f = scare_frame(k, g.phase_ms);
+        CHECK(capture_demanded[a->frames[0]] && capture_focus_handle == a->frames[f], 59);
+        capture_missing_handle = a->frames[f];
+        CHECK(!game_view_loading(&g), 60);
+        view();
+        CHECK(count(a->frames[f - 1]) && !count(591), 155);
+        capture_missing_handle = a->frames[0];
+        view();
+        CHECK(game_view_loading(&g) && capture_focus_handle == a->frames[0], 156);
         capture_missing_handle = -1;
     }
     night();
@@ -281,7 +288,7 @@ int run_presentation_checks(void) {
     CHECK(count(37) == 1 && !count(41), 69);
     capture_resident_count = 0;
     view();
-    CHECK(capture_resident_count == 10 + CONTROL_TEXTURE_COUNT, 70);
+    CHECK(capture_resident_count == 14 + CONTROL_TEXTURE_COUNT, 70);
     capture_missing_handle = 41;
     view();
     int noise = scene_art(9, 0, 2000 / 22), opaque = 0;
@@ -296,7 +303,7 @@ int run_presentation_checks(void) {
     g.position[1] = 78;
     capture_resident_count = 0;
     view();
-    CHECK(capture_resident_count == 11 + CONTROL_TEXTURE_COUNT, 72);
+    CHECK(capture_resident_count == 15 + CONTROL_TEXTURE_COUNT, 72);
     night();
     view();
     CHECK(!count(109) && !count(47), 73);
@@ -355,6 +362,29 @@ int run_presentation_checks(void) {
     CHECK(game_view_loading(&g), 89);
     capture_missing_handle = -1;
     CHECK(!game_view_loading(&g), 90);
+    for (int k = 0; k < 4; ++k) {
+        int opening = scare_animation(k)->frames[0];
+        CHECK(capture_demanded[opening], 157);
+        capture_missing_handle = opening;
+        CHECK(game_view_loading(&g), 158);
+    }
+    for (int a = 12; a <= 15; ++a) {
+        int light_overlay = scene_art(134, a, 0);
+        CHECK(capture_demanded[light_overlay], 151);
+        capture_missing_handle = light_overlay;
+        CHECK(game_view_loading(&g), 152);
+    }
+    capture_missing_handle = -1;
+    for (int side = 0; side < 2; ++side) {
+        night();
+        g.pan = side ? OFFICE_PAN_MAX : 0;
+        g.position[side + 1] = 99 + side;
+        game_input(&g, IN_R, 0, 0);
+        game_input(&g, IN_LIGHT, 0, 0);
+        view();
+        CHECK(g.door[side] && g.door_ms[side] && game_light_visible(&g, side), 153);
+        CHECK(count(scene_art(134, side ? 15 : 14, 0)) == 1, 154);
+    }
     night();
     for (int i = 0; i < 4; ++i)
         g.save.options.plush[i] = 1;
@@ -380,10 +410,10 @@ int run_presentation_checks(void) {
     capture_resident_count = 0;
     capture_missing_handle = 388;
     view();
-    CHECK(!capture_count && game_view_loading(&g) && capture_resident_count == 21, 95);
+    CHECK(!capture_count && game_view_loading(&g) && capture_focus_handle == 388, 95);
     capture_missing_handle = 325;
     view();
-    CHECK(!capture_count && game_view_loading(&g), 96);
+    CHECK(placed(388, 398, 527) && !game_view_loading(&g), 96);
     capture_missing_handle = -1;
     view();
     CHECK(placed(388, 398, 527) && capture_count == 1 && !count(591) && !count(344), 97);
@@ -395,7 +425,6 @@ int run_presentation_checks(void) {
     capture_resident_count = 0;
     view();
     CHECK(count(396) == 1 && !count(591) && capture_resident_count == 23, 99);
-    extern unsigned char capture_demanded[8192];
     night();
     g.monitor = 1;
     view();
@@ -482,7 +511,6 @@ int run_presentation_checks(void) {
     g.outage_stage = 2;
     view();
     CHECK(!capture_count && !game_view_loading(&g), 118);
-    extern int capture_focus_handle;
     extern unsigned char capture_warmed[8192];
     night();
     g.monitor = 1;
@@ -508,7 +536,8 @@ int run_presentation_checks(void) {
     view();
     Game probe = g;
     probe.camera = 10;
-    CHECK(capture_warmed[scene_art(51, game_camera_animation(&probe), 0)] && !capture_warmed[344],
+    CHECK(capture_warmed[scene_art(51, game_camera_animation(&probe), 0)] &&
+              capture_demanded[344] && capture_warmed[345],
           121);
     night();
     g.door[0] = g.door[1] = 1;
