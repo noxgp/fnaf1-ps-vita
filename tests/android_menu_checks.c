@@ -53,8 +53,13 @@ int run_android_checks(void) {
     CHECK(g.phase == G_CONFIRM_NEW && count(7006) == 1, 4);
     android_menu_touch(&g, 147, 426);
     CHECK(g.phase == G_NEWSPAPER, 131);
-    game_input(&g, IN_OK, 0, 0);
-    CHECK(g.phase == G_INTRO, 5);
+    for (unsigned ms = 20; ms < NEWSPAPER_DURATION_MS; ms += 20)
+        game_tick(&g, 20);
+    CHECK(g.phase == G_NEWSPAPER, 172);
+    game_tick(&g, 20);
+    CHECK(g.phase == G_INTRO && g.night == 1 && g.sound_count &&
+              g.sounds[g.sound_count - 1].id == 11,
+          5);
     prepare();
     CHECK(placed(306, 409, 204) && placed(302, 399, 254), 6);
     android_menu_touch(&g, 480, 270);
@@ -92,7 +97,7 @@ int run_android_checks(void) {
     g.save.unlocked = 7;
     g.save.stars = 7;
     prepare();
-    CHECK(count(446) == 1 && count(445) == 1 && count(432) == 3, 21);
+    CHECK(count(446) == 1 && count(445) == 1 && count(432) == 3 && placed(7007, 48, 500), 21);
     android_menu_touch(&g, 217, 426);
     CHECK(g.phase == G_INTRO && g.night == 6, 22);
     prepare();
@@ -117,9 +122,53 @@ int run_android_checks(void) {
     android_menu_touch(&g, 147, 426);
     CHECK(g.phase == G_NEWSPAPER && g.save.next_night == 1, 29);
     fresh();
+    g.save.next_night = 5;
+    g.save.unlocked = 7;
+    g.save.stars = 7;
+    g.selection = 1;
+    g.phase_ms = 500;
+    gpu_queue_reset(0);
+    android_menu_prepare(&g, 0);
+    int first_frame[96], first_frame_count = capture_count;
+    CHECK(first_frame_count > 1, 164);
+    for (int i = 0; i < first_frame_count; ++i)
+        first_frame[i] = capture_commands[i][0];
     g.phase = G_WARNING;
     prepare();
-    CHECK(placed(24, 321, 189) && !count(172), 30);
+    CHECK(placed(24, 321, 189) && capture_count == 1 && capture_focus_handle == 194, 30);
+    for (int i = 0; i < first_frame_count; ++i)
+        CHECK(capture_demanded[first_frame[i]], 165);
+    g.phase_ms = WARNING_DURATION_MS - 20;
+    gpu_queue_reset(0);
+    CHECK(android_menu_prepare(&g, 0) && capture_count == 2 && count(24) && count(194), 166);
+    extern int capture_missing_handle;
+    capture_missing_handle = 341;
+    g.phase_ms = WARNING_FADE_OUT_START_MS;
+    gpu_queue_reset(0);
+    CHECK(!android_menu_prepare(&g, 0) && capture_count == 1 && count(24), 167);
+    capture_missing_handle = -1;
+    g.phase_ms = WARNING_FADE_MS / 2;
+    gpu_queue_reset(0);
+    CHECK(android_menu_prepare(&g, 0) && capture_count == 2 &&
+              ((unsigned)capture_commands[1][5] >> 24) == 128,
+          173);
+    g.phase_ms = 0;
+    capture_missing_handle = 194;
+    CHECK(game_view_loading(&g), 179);
+    gpu_queue_reset(0);
+    CHECK(!android_menu_prepare(&g, 0) && !count(24) && capture_demanded[24] &&
+              capture_demanded[194],
+          180);
+    capture_missing_handle = -1;
+    gpu_queue_reset(0);
+    CHECK(!game_view_loading(&g) && android_menu_prepare(&g, 0) && count(24) && count(194) &&
+              ((unsigned)capture_commands[1][5] >> 24) == 255,
+          181);
+    fresh();
+    g.save.next_night = 5;
+    g.selection = 1;
+    game_input(&g, IN_OK, 0, 0);
+    CHECK(g.phase == G_INTRO && g.night == 5 && g.sounds[g.sound_count - 1].id == 11, 174);
     return 0;
 }
 static void night(void) {
@@ -360,6 +409,9 @@ int run_presentation_checks(void) {
     CHECK(capture_resident_count >= CONTROL_TEXTURE_COUNT, 88);
     capture_missing_handle = control_textures[0];
     CHECK(game_view_loading(&g), 89);
+    g.elapsed = 20;
+    CHECK(!game_view_loading(&g), 159);
+    g.elapsed = 0;
     capture_missing_handle = -1;
     CHECK(!game_view_loading(&g), 90);
     for (int k = 0; k < 4; ++k) {
@@ -537,7 +589,7 @@ int run_presentation_checks(void) {
     Game probe = g;
     probe.camera = 10;
     CHECK(capture_warmed[scene_art(51, game_camera_animation(&probe), 0)] &&
-              capture_demanded[344] && capture_warmed[345],
+              capture_demanded[344] && capture_demanded[345],
           121);
     night();
     g.door[0] = g.door[1] = 1;
@@ -553,7 +605,41 @@ int run_presentation_checks(void) {
     night();
     g.night = 3;
     game_view_prepare(&g, 2000, 0, 1);
-    CHECK(count(306) == 1 && count(332) == 1 && !count(591), 126);
+    CHECK(capture_count == 1 && placed(482, 904, 494), 126);
+    g.phase = G_NEWSPAPER;
+    capture_missing_handle = 574;
+    CHECK(game_view_loading(&g), 168);
+    capture_missing_handle = 194;
+    CHECK(game_view_loading(&g), 182);
+    view();
+    CHECK(!count(574) && capture_demanded[574] && capture_demanded[194], 183);
+    capture_missing_handle = -1;
+    view();
+    CHECK(!game_view_loading(&g) && count(574) && count(194) &&
+              ((unsigned)capture_commands[capture_count - 1][5] >> 24) == 255,
+          169);
+    g.phase_ms = NEWSPAPER_DURATION_MS - NEWSPAPER_FADE_MS / 2;
+    view();
+    CHECK(count(574) && count(194) &&
+              ((unsigned)capture_commands[capture_count - 1][5] >> 24) == 127,
+          175);
+    g.phase = G_INTRO;
+    g.phase_ms = 80;
+    capture_missing_handle = 332;
+    CHECK(game_view_loading(&g), 170);
+    capture_missing_handle = 608;
+    CHECK(game_view_loading(&g), 176);
+    view();
+    CHECK(!count(306) && capture_demanded[608], 177);
+    capture_missing_handle = -1;
+    view();
+    CHECK(!game_view_loading(&g) && count(306) && count(332) && placed(608, 0, 117) &&
+              !count(482),
+          171);
+    g.phase_ms = NIGHT_CARD_DURATION_MS;
+    view();
+    CHECK(capture_count == 1 && placed(482, 904, 494), 178);
+    g.phase = G_PLAY;
     g.monitor = 1;
     g.save.options.radar = 1;
     view();
@@ -639,5 +725,34 @@ int run_presentation_checks(void) {
     g.position[2] = 83;
     view();
     CHECK(count(500) == 1 && !count(507), 150);
+    night();
+    g.night = 5;
+    g.camera = 7;
+    g.position[0] = g.position[2] = 81;
+    g.camera_twitch = 24;
+    g.fox = 1;
+    g.jam[0] = 1;
+    int chica = scene_art(51, 38, 0);
+    int freddy = scene_art(51, 64, 0);
+    capture_missing_handle = chica;
+    view();
+    CHECK(capture_warmed[chica] && capture_warmed[scare_animation(3)->frames[1]] &&
+              capture_warmed[scene_art(51, 51, 27)],
+          160);
+    g.monitor = 1;
+    g.monitor_ms = 80;
+    view();
+    CHECK(capture_focus_handle == chica, 161);
+    capture_missing_handle = -1;
+    g.monitor_ms = 0;
+    g.elapsed = 1800;
+    g.monitor_opened_ms = 1700;
+    view();
+    CHECK(count(chica) == 1 && !count(freddy) && capture_demanded[120] &&
+              count(scene_art(50, 0, 0)) == 1,
+          162);
+    g.phase = G_OUTAGE;
+    CHECK(game_touch(&g, 40, 240, 0) == IN_LEFT && game_touch(&g, 902, 240, 0) == IN_RIGHT,
+          163);
     return 0;
 }

@@ -3,6 +3,7 @@
 #include "game.h"
 enum {
     AUDIO_VOICES = 24,
+    A_DOOR_LIGHT = 5,
     A_PIRATE = 8,
     A_CREEK = 9,
     A_DRONE = 10,

@@ -310,14 +310,16 @@ static void draw_sprite(int handle, float x, float y, float w, float h, unsigned
             ++errors;
             return;
         }
-        perspective_mesh(v, x, y, w, h, display_mode == 2 ? 363.0f : 480.0f);
+        unsigned count = perspective_mesh(v, x, y, w, h, display_mode == 2 ? 363.0f : 480.0f);
+        if (!count)
+            return;
         if (part)
-            for (int i = 0; i < PERSPECTIVE_VERTICES; ++i) {
+            for (unsigned i = 0; i < count; ++i) {
                 v[i].u = (part->x + v[i].u * part->width) / tw;
                 v[i].v = (part->y + v[i].v * part->height) / th;
             }
         vita2d_draw_array_textured(t, SCE_GXM_PRIMITIVE_TRIANGLE_STRIP,
-                                   (const vita2d_texture_vertex *)v, PERSPECTIVE_VERTICES, color);
+                                   (const vita2d_texture_vertex *)v, count, color);
     }
     ++current_stats.draw_calls;
 }
@@ -373,6 +375,10 @@ void gpu_queue_reset(int display) {
     ++serial;
     memset(needed, 0, sizeof(needed));
     memset(&current_stats, 0, sizeof(current_stats));
+}
+void gpu_queue_discard_draws(void) {
+    /* Keep the texture requests so a hidden screen can be prepared ahead of time. */
+    command_count = 0;
 }
 void gpu_queue_image(int handle, float x, float y, float w, float h, unsigned color,
                      int perspective) {

@@ -16,6 +16,9 @@ void gpu_queue_reset(int display) {
     memset(capture_demanded, 0, sizeof(capture_demanded));
     memset(capture_warmed, 0, sizeof(capture_warmed));
 }
+void gpu_queue_discard_draws(void) {
+    capture_count = 0;
+}
 void gpu_queue_image(int handle, float x, float y, float w, float h, unsigned color,
                      int perspective) {
     (void)perspective;
@@ -54,6 +57,12 @@ void gpu_queue_prepare(void) {
 }
 int gpu_texture_ready(int handle) {
     return handle != capture_missing_handle;
+}
+int gpu_queue_draw_ready(void) {
+    for (int i = 0; i < capture_count; ++i)
+        if (!gpu_texture_ready(capture_commands[i][0]))
+            return 0;
+    return 1;
 }
 int gpu_texture_dimensions(int handle, unsigned *width, unsigned *height) {
     (void)handle;

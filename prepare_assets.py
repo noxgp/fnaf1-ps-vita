@@ -11,7 +11,7 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parent
 sys.path.insert(0,str(ROOT/'scripts'))
-VERSION='0.1.0-beta.1'
+VERSION='1.0.6'
 SUPPORTED_CCN_SHA256='70a1ec40284d4f5232d0ecedcbd94a68c51cd937983ad17d2cbf329aad35b6d4'
 UI_VERSION=b'FNAF1-PUBLIC-UI-1\n'
 

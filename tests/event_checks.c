@@ -167,5 +167,18 @@ int run_event_checks(void) {
     fresh(1);
     game_sound_volume(&g, A_PIRATE, 25);
     CHECK(sound(-2, A_PIRATE), 34);
+    fresh(1);
+    g.jam[0] = g.jam[1] = 1;
+    g.monitor = 1;
+    g.side_attack_armed = 3;
+    game_events_tick(&g, 20);
+    int breaths = 0;
+    for (int id = 22; id <= 25; ++id)
+        breaths += sound(id, A_INTRUDER);
+    CHECK(breaths == 1 && g.intruder_ms == 5000, 35);
+    g.sound_count = 0;
+    g.monitor = 0;
+    game_events_tick(&g, 20);
+    CHECK(sound(-1, A_INTRUDER) && !g.intruder_ms, 36);
     return 0;
 }

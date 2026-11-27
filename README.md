@@ -6,9 +6,9 @@ The port uses a game-specific native runtime written in C, with GXM rendering an
 
 **This repository contains no game files.** You need your own legally obtained copy of the FNaF 1 Android APK.
 
-**Release:** `v1.0.5 (Update 5)` · **Vita application version:** `00.27` · **Title ID:** `FNAFSCN01`
+**Release** · `v1.0.6 (Update 6)` · **Vita application version** · `00.28` · **Title ID** · `FNAFSCN01`
 
-[Download Update 5](https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.5) · [Patch notes](RELEASE-NOTES.md)
+[Download Update 6](https://github.com/noxgp/fnaf1_ps_vita/releases/tag/v1.0.6) · [Patch notes](RELEASE-NOTES.md)
 
 ## Features
 
@@ -47,13 +47,13 @@ In Extras, Unlimited Power, Fast Nights and Radar disable progress and stars for
 
 ## Installation
 
-1. Download the [VPK for the latest release](https://github.com/noxgp/fnaf1-ps-vita/releases/latest). You need a homebrew-enabled PS Vita with VitaShell.
+1. Download the VPK. You need a homebrew-enabled PS Vita with VitaShell. [Latest release](https://github.com/noxgp/fnaf1_ps_vita/releases/latest)
 2. Use the FNaF 1 Android APK from your own purchase. The Data Tool accepts one Android 2.0.7 data revision and checks that `res/raw/application.ccn` has SHA-256 `70a1ec40284d4f5232d0ecedcbd94a68c51cd937983ad17d2cbf329aad35b6d4`.
 3. Prepare the data on your computer using the instructions below.
 
 ### Windows
 
-Download the **Data Tool** ZIP from the [release page](https://github.com/noxgp/fnaf1-ps-vita/releases/latest) and extract it. Open a terminal in the extracted folder. You need Python 3.11 or newer and FFmpeg.
+Download and extract the **Data Tool** ZIP. Open a terminal in the extracted folder. You need Python 3.11 or newer and FFmpeg. [Latest release](https://github.com/noxgp/fnaf1_ps_vita/releases/latest)
 
 ```powershell
 py -3 -m pip install -r requirements-assets.txt
@@ -64,7 +64,7 @@ If FFmpeg is on your PATH, you can also drag the APK onto `Prepare-Game-Data.cmd
 
 ### macOS and Linux
 
-Download the **Data Tool** ZIP from the [release page](https://github.com/noxgp/fnaf1-ps-vita/releases/latest) and extract it. Open Terminal in the extracted folder. You need Python 3.11 or newer, FFmpeg, `curl` and about 2 GB of free working space.
+Download and extract the **Data Tool** ZIP. Open Terminal in the extracted folder. You need Python 3.11 or newer, FFmpeg, `curl` and about 2 GB of free working space. [Latest release](https://github.com/noxgp/fnaf1_ps_vita/releases/latest)
 
 - **macOS with Homebrew** — `brew install python ffmpeg`
 - **Ubuntu 24.04 / Debian 12 or newer** — `sudo apt install python3 python3-venv ffmpeg curl`
@@ -99,7 +99,7 @@ The prepared folder contains the game's files. Keep it for yourself. Don't uploa
 
 ### Upgrading from a previous public release
 
-Install the new VPK over your existing version with VitaShell. Keep `ux0:data/fnaf1/` and your saves in place. Use the latest VPK for the current fixes. [Latest release](https://github.com/noxgp/fnaf1-ps-vita/releases/latest)
+Install the new VPK over your existing version with VitaShell. Keep `ux0:data/fnaf1/` and your saves in place. [Latest release](https://github.com/noxgp/fnaf1_ps_vita/releases/latest)
 
 ### Upgrading from older private builds
 
@@ -115,7 +115,7 @@ If the Vita reports **Old Game Data Format** or your sprites or audio are incomp
 
 ## Known limitations
 
-- **Testing.** Build 00.27 passed automated regression checks. Hardware timing for its door light and jumpscare changes is pending. See [testing](docs/TESTING.md) for details.
+- **Testing.** Build 00.28 passed automated regression checks. Device timing for the startup, lighting and animation changes is pending. [Testing details](docs/TESTING.md)
 - **AI and RNG.** Starting AI levels come from the supported game data. Edge cases and balance still need comparison with Android.
 - **The perspective effect** is a native approximation.
 - **Menu labels are in English.**
@@ -167,4 +167,4 @@ Full notices are in `third_party/licenses/` and inside the VPK. See [CREDITS.md]
 - *Five Nights at Freddy's* © Scott Cawthon. Android edition by Clickteam. This is an unofficial, non-commercial fan port, not affiliated with or endorsed by them.
 - Port code is under the [MIT license](LICENSE).
 
-Report bugs in [Issues](https://github.com/noxgp/fnaf1-ps-vita/issues) with the app version, night/camera, Vita firmware and steps to reproduce. Never attach game files or save files.
+Report bugs with the app version, night or camera, Vita firmware and steps to reproduce. Keep game files and saves private. [GitHub Issues](https://github.com/noxgp/fnaf1_ps_vita/issues)

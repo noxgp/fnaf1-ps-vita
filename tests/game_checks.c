@@ -52,7 +52,7 @@ int run_game_checks(void) {
     s.stars = 7;
     game_encode_save(&s, bytes);
     CHECK(!game_decode_save(&t, bytes) && t.options.language == 10 && t.custom[3] == 20 &&
-              t.stars == 7,
+              t.stars == 7 && t.next_night == 5 && t.unlocked == 7,
           5);
     start(2);
     CHECK(g.ai[0] == 0 && g.ai[1] == 3 && g.ai[2] == 1 && g.ai[3] == 1, 6);
@@ -134,14 +134,21 @@ int run_game_checks(void) {
         g.pan = actor == 1 ? 0 : OFFICE_PAN_MAX;
         game_input(&g, IN_R, 0, 0);
         CHECK(!g.door[actor - 1], 33 + actor);
+        g.sound_count = 0;
+        game_input(&g, IN_DIRECT_LIGHT, 0, 0);
+        CHECK(!g.light[actor - 1] && sound(4, 3, 70), 237 + actor);
         step(5000);
         CHECK(g.phase == G_PLAY, 186 + actor);
         game_input(&g, IN_L, 0, 0);
         CHECK(g.monitor && (g.side_attack_armed & (1 << (actor - 1))), 188 + actor);
         step(400);
         game_input(&g, IN_L, 0, 0);
-        step(1500);
-        CHECK(g.phase == G_SCARE && g.killer == actor, 36 + actor);
+        game_input(&g, IN_PAUSE | IN_DIRECT_LIGHT | IN_DIRECT_MUTE, IN_LEFT, 0);
+        CHECK(g.phase == G_PLAY && !g.monitor && !g.phone_muted, 240 + actor);
+        step(360);
+        CHECK(g.phase == G_PLAY && g.monitor_ms == 361, 243 + actor);
+        step(20);
+        CHECK(g.phase == G_SCARE && g.killer == actor && !g.phase_ms, 36 + actor);
         step(1800);
         CHECK(g.phase == G_DEAD, 39 + actor);
     }
@@ -375,7 +382,7 @@ int run_game_checks(void) {
     game_input(&g, 0, IN_RIGHT, 0);
     step(200);
     int pan = g.pan;
-    CHECK(pan == 256, 97);
+    CHECK(pan == 312, 97);
     start(1);
     for (int i = 0; i < 10; ++i) {
         game_input(&g, 0, IN_RIGHT, 0);
@@ -383,13 +390,17 @@ int run_game_checks(void) {
     }
     CHECK(g.pan == pan, 98);
     start(1);
+    game_input(&g, 0, 0, 127);
+    step(200);
+    CHECK(g.pan == pan, 253);
+    start(1);
     game_input(&g, 0, IN_LEFT, 0);
     step(1000);
     CHECK(g.pan == 0, 99);
     PerspectiveVertex mesh[PERSPECTIVE_VERTICES];
-    perspective_mesh(mesh, -120, 2, 1200, 540, 480);
-    CHECK(mesh[0].x == -120 && mesh[PERSPECTIVE_VERTICES - 1].x == 1080 && mesh[0].u == 0 &&
-              mesh[PERSPECTIVE_VERTICES - 1].u == 1,
+    unsigned vertices = perspective_mesh(mesh, -120, 2, 1200, 540, 480);
+    CHECK(vertices == PERSPECTIVE_VERTICES && mesh[0].x == 0 && mesh[vertices - 1].x == 960 &&
+              mesh[0].u == .1f && mesh[vertices - 1].u == .9f,
           100);
     for (int i = 0; i < PERSPECTIVE_VERTICES; i += 2) {
         CHECK(mesh[i].x == mesh[i + 1].x && mesh[i].y < mesh[i + 1].y && mesh[i].v == 0 &&
@@ -398,6 +409,21 @@ int run_game_checks(void) {
         CHECK(mesh[i].y <= 2 && mesh[i + 1].y >= 542, 102);
         if (i)
             CHECK(mesh[i].x > mesh[i - 2].x, 103);
+    }
+    CHECK(office_height_scale(0, 480) == office_height_scale(960, 480) &&
+              office_height_scale(1080, 480) == office_height_scale(960, 480) &&
+              office_height_scale(960, 480) < 1.2f,
+          246);
+    PerspectiveVertex patch[PERSPECTIVE_VERTICES];
+    unsigned patch_vertices = perspective_mesh(patch, 72.75f, 2, 316.5f, 540, 480);
+    CHECK(patch_vertices < vertices && patch_vertices > 4 && patch[0].u == 0 &&
+              patch[patch_vertices - 1].u == 1,
+          254);
+    for (unsigned i = 2; i + 2 < patch_vertices; i += 2) {
+        unsigned base = (unsigned)(patch[i].x / 30.0f) * 2;
+        CHECK(patch[i].x == mesh[base].x && patch[i].y == mesh[base].y &&
+                  patch[i + 1].y == mesh[base + 1].y,
+              255);
     }
     CHECK(camera_map_move(0, 0, 1) == 1 && camera_map_move(1, 0, 1) == 2, 104);
     CHECK(camera_map_move(3, 0, 1) == 4 && camera_map_move(3, 1, 0) == 6, 105);
@@ -447,7 +473,7 @@ int run_game_checks(void) {
     animation_texture_size(591, &sw, &sh);
     CHECK(sw == 1200 && sh == 540, 123);
     animation_texture_size(266, &sw, &sh);
-    CHECK(sw == 400 && sh == 180, 233);
+    CHECK(sw == 360 && sh == 162, 233);
     TouchArea area = {20, 30, 1939, 1117};
     int tx, ty;
     CHECK(touch_to_game(area, 980, 574, 0, &tx, &ty) && tx == 480 && ty == 272, 124);
@@ -599,29 +625,35 @@ int run_game_checks(void) {
     g.pan = 0;
     g.position[1] = 99;
     game_input(&g, IN_LIGHT, IN_LIGHT, 0);
-    CHECK(game_light_visible(&g, 0) && sound(1, 5, 100) && sound(31, A_SIGHTING, 80), 166);
+    CHECK(game_light_visible(&g, 0) && sound(1, A_DOOR_LIGHT, 100) && sound(31, A_SIGHTING, 80), 166);
     g.sound_count = 0;
     game_input(&g, 0, IN_LIGHT, 0);
     game_input(&g, 0, 0, 0);
     CHECK(g.light[0] && !g.sound_count, 167);
     game_input(&g, IN_LIGHT, 0, 0);
-    CHECK(!g.light[0] && g.sound_count == 1 && sound(-1, 5, 0), 168);
+    CHECK(!g.light[0] && g.sound_count == 1 && sound(-1, A_DOOR_LIGHT, 0), 168);
     g.sound_count = 0;
     game_input(&g, IN_LIGHT, 0, 0);
     CHECK(g.light[0] && g.sound_count == 1 && !sound(31, A_SIGHTING, 80), 169);
-    step(100);
-    CHECK(game_light_visible(&g, 0), 196);
-    g.light_ms = 20;
-    step(20);
-    CHECK(g.light[0] && !game_light_visible(&g, 0) && g.light_ms <= 60, 191);
-    step(60);
-    CHECK(game_light_visible(&g, 0) && g.light_ms >= 260, 192);
+    g.sound_count = 0;
+    g.visual_rng = 10;
+    g.flicker_clock = 0;
+    game_tick(&g, 20);
+    CHECK(g.light[0] && !game_light_visible(&g, 0) && g.usage == 2 &&
+              sound(-2, A_DOOR_LIGHT, 0) && !sound(-1, A_DOOR_LIGHT, 0),
+          191);
+    g.sound_count = 0;
+    g.visual_rng = 1;
+    game_tick(&g, 20);
+    CHECK(game_light_visible(&g, 0) && sound(-2, A_DOOR_LIGHT, 100) &&
+              !sound(1, A_DOOR_LIGHT, 100),
+          192);
     g.pan = OFFICE_PAN_MAX;
     game_input(&g, IN_LIGHT, 0, 0);
     CHECK(g.light[1] && game_light_visible(&g, 1) && !g.light[0], 170);
     g.sound_count = 0;
     game_input(&g, IN_OK, 0, 0);
-    CHECK(g.monitor && g.monitor_ms == 1 && !g.light[0] && sound(-1, 5, 0), 171);
+    CHECK(g.monitor && g.monitor_ms == 1 && !g.light[0] && sound(-1, A_DOOR_LIGHT, 0), 171);
     step(340);
     CHECK(g.monitor_ms != 0, 172);
     step(40);
@@ -647,8 +679,11 @@ int run_game_checks(void) {
     g.monitor_ms = 100;
     g.door_ms[0] = 200;
     game_tick(&g, 20);
-    CHECK(g.phase == G_OUTAGE && !g.pan && !g.pan_speed && !g.pan_fraction, 178);
+    CHECK(g.phase == G_OUTAGE && g.pan == 320 && !g.pan_speed && !g.pan_fraction, 178);
     CHECK(!g.monitor && !g.monitor_ms && !g.door_ms[0] && !g.door_ms[1] && !g.outage_stage, 179);
+    game_input(&g, 0, IN_LEFT, 0);
+    step(100);
+    CHECK(g.pan == 244, 247);
     start(1);
     game_select_camera(&g, 10);
     CHECK(g.camera_cut_ms == CAMERA_CUT_MS && !g.static_ms, 180);
@@ -680,6 +715,25 @@ int run_game_checks(void) {
     CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 55, 234);
     g.position[2] = 83;
     CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 28, 235);
+    g.camera = 7;
+    g.position[0] = g.position[2] = 81;
+    g.camera_twitch = 27;
+    CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 56, 248);
+    g.position[2] = 83;
+    CHECK(game_camera_feeds(&g, feeds) == 1 && feeds[0] == 64, 249);
+
+    start(5);
+    for (int a = 0; a < 4; ++a)
+        g.ai[a] = -10;
+    step(534980);
+    CHECK(g.phase == G_PLAY && g.hour == 5 && g.power == 287, 250);
+    game_tick(&g, 20);
+    CHECK(g.phase == G_WIN && g.save.next_night == 5 && g.save.unlocked == 6 &&
+              (g.save.stars & 1),
+          251);
+    step(8980);
+    game_tick(&g, 20);
+    CHECK(g.phase == G_ENDING && sound(30, 3, 100) && g.sounds[g.sound_count - 1].loop, 252);
 
     game_defaults(&s);
     game_encode_save(&s, bytes);

@@ -195,9 +195,8 @@ int game_camera_feeds(const Game *g, int animations[3]) {
         occupants += g->position[actor] == room;
 
     int view = game_camera_view(g);
-    /* The stage has group artwork. Dining Area uses the Android event's
-     * Chica-priority shot, even when Bonnie shares the room. */
-    if (occupants < 2 || view == 1 || view == 2 || view == 6)
+    /* Keep the stage group artwork and the authored Chica-priority feeds. */
+    if (occupants < 2 || view == 1 || view == 2 || view == 6 || view == 42)
         return count;
 
     Game angle = *g;
@@ -322,7 +321,7 @@ static void win(Game *g) {
     if (!g->cheated) {
         int n = g->night;
         if (n < 6) {
-            g->save.next_night = n + 1;
+            g->save.next_night = n < 5 ? n + 1 : 5;
             if (g->save.unlocked < n + 1)
                 g->save.unlocked = n + 1;
         }
@@ -426,8 +425,8 @@ static void set_light(Game *g, int side) {
     g->light[0] = side == 0;
     g->light[1] = side == 1;
     g->light_flicker = 0;
-    g->light_ms = side >= 0 ? 220 + visual_random(g, 580) : 0;
-    game_sound(g, side >= 0 ? 1 : -1, 5, side >= 0, side >= 0 ? 100 : 0);
+    game_sound(g, side >= 0 ? 1 : -1, A_DOOR_LIGHT, side >= 0, side >= 0 ? 100 : 0);
+    g->event_volumes[A_DOOR_LIGHT] = side >= 0 ? 101 : 1;
 }
 static void check_door_sighting(Game *g, int side) {
     if (side >= 0 && game_light_visible(g, side) && !g->door[side] &&
@@ -440,6 +439,15 @@ static void start_pause(Game *g) {
     g->return_phase = g->phase;
     g->pause_action = 0;
     phase(g, G_PAUSE);
+}
+static int office_pan_speed(unsigned held, int analog) {
+    int direction = ((held & IN_RIGHT) != 0) - ((held & IN_LEFT) != 0);
+    return (direction ? direction * 127 : clamp(analog, -127, 127)) * 6;
+}
+static void tick_office_pan(Game *g, unsigned ms) {
+    g->pan_fraction += g->pan_speed * (int)ms;
+    g->pan = clamp(g->pan + g->pan_fraction / 1000, 0, OFFICE_PAN_MAX);
+    g->pan_fraction %= 1000;
 }
 void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
     if (g->phase == G_CONTROL_OPTIONS) {
@@ -475,6 +483,8 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         return;
     }
     if (g->phase == G_PLAY) {
+        if (!g->monitor && g->side_attack_armed)
+            return;
         if (pressed & (IN_PAUSE | IN_HELP))
             set_light(g, -1);
         if (pressed & IN_PAUSE) {
@@ -515,29 +525,28 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
                 dy = ((pressed & IN_DOWN) != 0) - ((pressed & IN_UP) != 0);
             game_select_camera(g, camera_map_move(g->camera, dx, dy));
         }
-        g->pan_speed =
-            (g->monitor || g->monitor_ms)
-                ? 0
-                : analog * 6 + ((held & IN_RIGHT) ? 480 : 0) - ((held & IN_LEFT) ? 480 : 0);
+        g->pan_speed = (g->monitor || g->monitor_ms) ? 0 : office_pan_speed(held, analog);
         int side = !g->monitor && !g->monitor_ms ? game_office_side(g) : -1;
         unsigned door_keys = IN_DIRECT_DOOR | control_input(g, CONTROL_DOOR) |
                              control_input(g, side == 0 ? CONTROL_LEFT_DOOR : CONTROL_RIGHT_DOOR);
-        if (side >= 0 && !flip_monitor && (pressed & door_keys)) {
-            if (g->jam[side])
-                game_sound(g, 4, 3, 0, 70);
-            else if (!g->door_ms[side]) {
-                g->door[side] ^= 1;
-                g->door_ms[side] = 1;
-                game_sound(g, 3, 3, 0, 85);
-            }
-        }
-
         unsigned light_keys = IN_DIRECT_LIGHT | control_input(g, CONTROL_LIGHT) |
                               control_input(g, side == 0 ? CONTROL_LEFT_LIGHT : CONTROL_RIGHT_LIGHT);
         if (side < 0 || g->jam[side] || g->light[1 - side])
             set_light(g, -1);
-        if (side >= 0 && !g->jam[side] && (pressed & light_keys))
-            set_light(g, g->light[side] ? -1 : side);
+        if (side >= 0) {
+            if (g->jam[side]) {
+                if (pressed & (door_keys | light_keys))
+                    game_sound(g, 4, 3, 0, 70);
+            } else {
+                if (!g->door_ms[side] && (pressed & door_keys)) {
+                    g->door[side] ^= 1;
+                    g->door_ms[side] = 1;
+                    game_sound(g, 3, 3, 0, 85);
+                }
+                if (pressed & light_keys)
+                    set_light(g, g->light[side] ? -1 : side);
+            }
+        }
         check_door_sighting(g, side);
         if (game_phone_can_mute(g) && (pressed & (IN_DIRECT_MUTE | control_input(g, CONTROL_MUTE)))) {
             g->phone_muted = 1;
@@ -546,6 +555,7 @@ void game_input(Game *g, unsigned pressed, unsigned held, int analog) {
         return;
     }
     if (g->phase == G_OUTAGE) {
+        g->pan_speed = office_pan_speed(held, analog);
         if (pressed & IN_PAUSE)
             start_pause(g);
         return;
@@ -764,7 +774,7 @@ void game_tick(Game *g, unsigned ms) {
         if (g->phase_ms >= 9000) {
             if (g->night >= 5) {
                 phase(g, G_ENDING);
-                game_sound(g, 47, 3, 0, 70);
+                game_sound(g, 30, 3, 1, 100);
             } else
                 game_start(g, g->night + 1);
         }
@@ -790,6 +800,8 @@ void game_tick(Game *g, unsigned ms) {
                 ++g->ai[i];
     }
     if (g->phase == G_OUTAGE) {
+        if (g->outage_stage < 2)
+            tick_office_pan(g, ms);
         /* Room events 406/407, 423/424 and 433/434. Each stage also has a deadline. */
         unsigned interval = g->outage_stage < 2 ? 5000u : 2000u;
         g->outage_roll += ms;
@@ -829,11 +841,8 @@ void game_tick(Game *g, unsigned ms) {
     else
         g->static_ms = 0;
     g->camera_cut_ms = g->camera_cut_ms > ms ? g->camera_cut_ms - ms : 0;
-    if (!g->monitor && !g->monitor_ms) {
-        g->pan_fraction += g->pan_speed * (int)ms;
-        g->pan = clamp(g->pan + g->pan_fraction / 1000, 0, OFFICE_PAN_MAX);
-        g->pan_fraction %= 1000;
-    }
+    if (!g->monitor && !g->monitor_ms)
+        tick_office_pan(g, ms);
     for (int i = 0; i < 2; ++i)
         if (g->door_ms[i]) {
             g->door_ms[i] += ms;
@@ -844,18 +853,21 @@ void game_tick(Game *g, unsigned ms) {
         g->monitor_ms += ms;
         if (g->monitor_ms >= MONITOR_DURATION) {
             g->monitor_ms = 0;
-            if (g->monitor)
+            if (g->monitor) {
+                g->monitor_opened_ms = g->elapsed;
                 g->camera_cut_ms = CAMERA_CUT_MS;
+            }
         }
     }
+    if (!g->monitor && !g->monitor_ms && g->side_attack_armed) {
+        scare(g, (g->side_attack_armed & 1) ? 1 : 2);
+        return;
+    }
     if (g->light[0] || g->light[1]) {
-        if (g->light_ms > ms)
-            g->light_ms -= ms;
-        else {
-            g->light_flicker ^= 1;
-            g->light_ms = g->light_flicker ? 20 + visual_random(g, 41)
-                                           : 300 + visual_random(g, 1150);
-        }
+        /* Room events 243-246 and 251-253 use the same 1-in-10 visual roll
+         * for the unlit image and the muted hum. Keep the hum looping. */
+        g->light_flicker = g->camera_flicker == 1;
+        game_sound_volume(g, A_DOOR_LIGHT, g->light_flicker ? 0 : 100);
         check_door_sighting(g, game_office_side(g));
     }
     g->usage = 1 + g->door[0] + g->door[1] + g->light[0] + g->light[1] + g->monitor;
@@ -881,7 +893,7 @@ void game_tick(Game *g, unsigned ms) {
         g->power = 0;
         g->door[0] = g->door[1] = g->light[0] = g->light[1] = g->monitor = 0;
         g->monitor_ms = g->door_ms[0] = g->door_ms[1] = 0;
-        g->pan = g->pan_speed = g->pan_fraction = 0;
+        g->pan_speed = g->pan_fraction = 0;
         phase(g, G_OUTAGE);
         g->outage_stage = 0;
         g->outage_roll = 0;
@@ -891,14 +903,10 @@ void game_tick(Game *g, unsigned ms) {
         return;
     }
     for (int i = 0; i < 2; ++i)
-        if (g->side_attack_armed & (1 << i)) {
-            if (g->monitor) {
-                if ((g->inside_ms[i] += ms) >= 30000)
-                    game_input(g, IN_DIRECT_MONITOR, 0, 0);
-            } else if (!g->monitor_ms && (g->inside_ms[i] += ms) >= 1200) {
-                scare(g, i + 1);
-                return;
-            }
+        if (g->monitor && (g->side_attack_armed & (1 << i))) {
+            g->inside_ms[i] += ms;
+            if (g->inside_ms[i] >= 30000)
+                game_input(g, IN_DIRECT_MONITOR, 0, 0);
         }
     if (g->monitor) {
         g->watch_ms += ms;
@@ -1053,6 +1061,8 @@ int game_decode_save(GameSave *s, const unsigned char in[128]) {
                      &t.custom[2],  &t.custom[3]};
     for (int i = 0; i < 22; ++i)
         *fields[i] = v[i];
+    if (t.next_night > 5)
+        t.next_night = 5;
     if (in[26] == 1 && in[27] < CONTROL_LAYOUT_COUNT) {
         unsigned used = 0;
         int valid = 1;

@@ -127,12 +127,18 @@ static void hint_animation(int object, int animation) {
         gpu_queue_prefetch(scene_art(object, animation, f));
 }
 int game_view_loading(const Game *g) {
+    if (g->phase == G_WARNING)
+        return !android_menu_warning_ready();
+    if (g->phase == G_NEWSPAPER)
+        return !gpu_texture_ready(574) || !gpu_texture_ready(194);
+    if (g->phase == G_INTRO && g->phase_ms < NIGHT_CARD_DURATION_MS)
+        return !android_menu_night_card_ready(g->night);
     if (g->phase == G_CREEPY_START)
         return !gpu_texture_ready(211) || !gpu_texture_ready(192);
     if (g->phase == G_CREEPY_END)
         return !gpu_texture_ready(548);
-    if (g->phase == G_PLAY) {
-        if (!g->elapsed && !gpu_texture_ready(591))
+    if (g->phase == G_PLAY && !g->elapsed) {
+        if (!gpu_texture_ready(591))
             return 1;
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
             if (!gpu_texture_ready(control_textures[i]))
@@ -154,24 +160,30 @@ static void keep_scare_openings(void) {
         gpu_queue_resident(scare_animation(k)->frames[0]);
 }
 static void warm_scares(const Game *g) {
+    const int threats[] = {
+        g->position[0] == 80 || g->position[0] == 81 || g->position[0] == 122,
+        g->position[1] == 99 || g->jam[0],
+        g->position[2] == 100 || g->jam[1],
+        g->fox >= 1,
+    };
+    int imminent = -1;
+    if (g->side_attack_armed)
+        imminent = (g->side_attack_armed & 1) ? 1 : 2;
+    else if (g->fox >= 3)
+        imminent = 3;
+    else if (g->position[0] == 122)
+        imminent = 0;
     for (int k = 0; k < NORMAL_SCARE_COUNT; ++k) {
         const ScareAnimation *a = scare_animation(k);
-        for (int f = 1; f < 3; ++f)
-            gpu_queue_prefetch(a->frames[f]);
+        for (int f = 1; f < a->count; ++f) {
+            if (f < 2 && k == imminent)
+                gpu_queue_resident(a->frames[f]);
+            else if (threats[k])
+                gpu_queue_warm(a->frames[f]);
+            else if (f < 3)
+                gpu_queue_prefetch(a->frames[f]);
+        }
     }
-    int threat = -1;
-    if (g->position[0] == 80 || g->position[0] == 81 || g->position[0] == 122)
-        threat = 0;
-    if (g->fox >= 2)
-        threat = 3;
-    if (g->position[1] == 99 || g->jam[0])
-        threat = 1;
-    if (g->position[2] == 100 || g->jam[1])
-        threat = 2;
-    const ScareAnimation *a = scare_animation(threat);
-    if (a)
-        for (int f = 0; f < a->count; ++f)
-            gpu_queue_warm(a->frames[f]);
 }
 static void warm_night(const Game *g) {
     /* Warm current-night starting views during the advertisement/night intro.
@@ -269,11 +281,11 @@ static int fox_run_frame(unsigned ms) {
     int frame = (int)(ms * FOX_RUN_FPS / 1000);
     return frame < count ? frame : count - 1;
 }
-static void warm_fox_run(int frame) {
+static void warm_fox_run(int frame, int lookahead) {
     int count = scene_art_count(51, FOX_RUN_ANIMATION);
     for (int f = frame; f < count; ++f) {
         int handle = scene_art(51, FOX_RUN_ANIMATION, f);
-        if (f - frame < FOX_LOOKAHEAD)
+        if (f - frame < lookahead)
             gpu_queue_resident(handle);
         else
             gpu_queue_warm(handle);
@@ -405,12 +417,17 @@ static void draw_scare(const Game *g) {
             image(handle, -120, 2, im ? im->width * .75f : 1200, 540, 0xffffffffu, 0);
     }
 }
-static int night_card_loading;
-void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int preparing_night) {
+static int night_loading;
+int game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int preparing_night) {
     clock_time = ms;
-    night_card_loading = preparing_night;
+    night_loading = preparing_night;
     gpu_queue_reset(g->save.options.display);
     int phase = g->phase;
+    int title_ready = 0;
+    if (phase == G_TITLE || phase == G_CONFIRM_NEW) {
+        gpu_queue_warm(574);
+        gpu_queue_warm(194);
+    }
     if (phase == G_TITLE) {
         gpu_queue_warm(591);
         for (int i = 0; i < CONTROL_TEXTURE_COUNT; ++i)
@@ -437,25 +454,38 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
     if (g->save.options.radar && (phase == G_INTRO || (phase == G_PLAY && !g->monitor)))
         for (int i = 0; i < 4; ++i)
             gpu_queue_warm(radar_portraits[i]);
-    if (phase == G_PLAY && g->fox >= 2 && g->fox < 4)
-        warm_fox_run(0);
+    if (phase == G_PLAY && g->fox >= 1 && g->fox < 4)
+        warm_fox_run(0, g->fox >= 2 ? FOX_LOOKAHEAD : 0);
+    if (phase == G_PLAY && (!g->monitor || g->monitor_ms) && game_camera_view(g) != 6) {
+        int next_feed = scene_art(51, game_camera_animation(g), 0);
+        if (g->monitor)
+            gpu_queue_focus(next_feed);
+        else if (gpu_texture_ready(next_feed))
+            gpu_queue_resident(next_feed);
+        else
+            gpu_queue_warm(next_feed);
+    }
     if (phase == G_NEWSPAPER || phase == G_INTRO || (phase == G_PLAY && !gpu_texture_ready(591)))
         warm_night(g);
     if (preparing_night)
-        android_menu_night_card(g->night);
+        android_menu_loading_clock();
     else if (android_menu_phase(phase))
-        android_menu_prepare(g, ms);
+        title_ready = android_menu_prepare(g, ms);
     else if (phase == G_NEWSPAPER) {
-        screen(574, 0xffffffffu);
-        forced(g, "/13-ad", (g->phase_ms / 1000) % 8);
-        unsigned alpha = g->phase_ms < 600    ? 255 - g->phase_ms * 255 / 600
-                         : g->phase_ms > NEWSPAPER_DURATION_MS - 600
-                             ? (g->phase_ms - (NEWSPAPER_DURATION_MS - 600)) * 255 / 600
-                                              : 0;
-        if (alpha > 255)
-            alpha = 255;
-        if (alpha)
-            screen(194, (alpha << 24) | 0xffffffu);
+        gpu_queue_focus(574);
+        gpu_queue_focus(194);
+        if (!game_view_loading(g)) {
+            screen(574, 0xffffffffu);
+            forced(g, "/13-ad", (g->phase_ms / 1000) % 8);
+            const unsigned fade_out = NEWSPAPER_DURATION_MS - NEWSPAPER_FADE_MS;
+            unsigned alpha = g->phase_ms < NEWSPAPER_FADE_MS
+                                 ? 255 - g->phase_ms * 255 / NEWSPAPER_FADE_MS
+                             : g->phase_ms > fade_out
+                                 ? (g->phase_ms - fade_out) * 255 / NEWSPAPER_FADE_MS
+                                 : 0;
+            if (alpha)
+                screen(194, (alpha << 24) | 0xffffffu);
+        }
     } else if (phase == G_PLAY || phase == G_PAUSE ||
                (phase == G_OPTIONS && g->options_parent == G_PAUSE) || phase == G_HELP) {
         if ((phase == G_PAUSE || phase == G_HELP) && g->return_phase == G_OUTAGE)
@@ -478,7 +508,7 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                     background = scene_art(51, a, f);
                     gpu_queue_focus(background);
                     if (running) {
-                        warm_fox_run(f + 1);
+                        warm_fox_run(f + 1, FOX_LOOKAHEAD);
                         displayed = fox_run_image(f);
                     } else if (gpu_texture_ready(background))
                         displayed = background;
@@ -523,12 +553,12 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
                         gpu_queue_warm(scene_art(51, game_camera_animation(&probe), 0));
                 }
                 art(74, 0, 0, 848, 313, 0, 1, 0);
-                art(50, 0, (int)(g->elapsed / 500), 92, 76, 0, 1, 0);
+                camera_cut(g->camera_cut_ms);
+                art(50, 0, (int)((g->elapsed - g->monitor_opened_ms) / 500), 92, 76, 0, 1, 0);
                 image(120, 12, 14, 935.25f, 1.5f, 0xffffffffu, 0);
                 image(120, 12, 528.5f, 935.25f, 1.5f, 0xffffffffu, 0);
                 image(120, 12, 14, 1.5f, 516, 0xffffffffu, 0);
                 image(120, 945.75f, 14, 1.5f, 516, 0xffffffffu, 0);
-                camera_cut(g->camera_cut_ms);
                 for (int i = 0; i < 11; ++i)
                     art(camera_map[i].object, g->camera == i ? 12 : 0,
                         (int)((g->elapsed - g->camera_selected_ms) * 3u * 60 / 100000),
@@ -618,22 +648,25 @@ void game_view_prepare(const Game *g, unsigned ms, unsigned phone_ms, int prepar
     } else
         screen(scene_art(9, 0, ms / 100), 0x65ffffffu);
     gpu_queue_prepare();
+    return title_ready;
 }
 static void text(int x, int y, const char *s) {
     gpu_text(x, y, s, 0xffffffffu);
 }
 void game_view_draw(const Game *g, unsigned fps, int save_error) {
     gpu_queue_draw();
-    if (night_card_loading) {
-        const char *status[] = {"Preparing", "Preparing.", "Preparing..", "Preparing..."};
-        text(810, 506, status[(clock_time / 360) % 4]);
+    if (night_loading) {
+        if (gpu_asset_errors())
+            text(150, 30, "Missing game file - install Game Files v2");
         return;
     }
     char s[96];
     int p = g->phase;
     if (android_menu_phase(p)) {
-        if (p == G_TITLE || p == G_CONFIRM_NEW)
-            text(286, 495, "Update 5");
+        if (p == G_TITLE || p == G_CONFIRM_NEW) {
+            text(704, 26, "Ported by nox");
+            text(704, 50, "Update 6 (v 1.0.5)");
+        }
         if (p == G_EXTRAS)
             android_menu_draw_extras_status(g);
         if (p == G_OPTIONS || p == G_CONTROL_OPTIONS)
@@ -705,6 +738,8 @@ int game_touch(Game *g, int x, int y, int initial) {
             android_menu_touch(g, x, y);
         return 0;
     }
+    if (g->phase == G_OUTAGE && g->outage_stage < 2)
+        return x < 120 ? IN_LEFT : x > 840 ? IN_RIGHT : 0;
     if (g->phase == G_PLAY) {
         if (initial && x >= 20 && x < 112 && y >= 18 && y < 44 && game_phone_can_mute(g)) {
             game_input(g, IN_DIRECT_MUTE, 0, 0);

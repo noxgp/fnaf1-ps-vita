@@ -20,6 +20,8 @@ typedef struct {
 static FakeFile files[32];
 static int open_id;
 static unsigned opens, closes, reads, seeks;
+static unsigned threads_started;
+static int fail_loader;
 static unsigned char heap[3][12332];
 static int allocated[3];
 void *malloc(size_t n) {
@@ -138,19 +140,19 @@ int ov_pcm_seek(OggVorbis_File *v, ogg_int64_t n) {
 SceUID sceKernelCreateThread(const char *name, SceKernelThreadEntry entry, int priority,
                              SceSize stack, SceUInt attr, int affinity,
                              const SceKernelThreadOptParam *opt) {
-    (void)name;
     (void)entry;
     (void)priority;
     (void)stack;
     (void)attr;
     (void)affinity;
     (void)opt;
-    return 1;
+    return fail_loader && !strcmp(name, "FnafAudioPreload") ? -1 : 1;
 }
 int sceKernelStartThread(SceUID id, SceSize n, void *p) {
     (void)id;
     (void)n;
     (void)p;
+    ++threads_started;
     return 0;
 }
 int sceKernelWaitThreadEnd(SceUID id, int *status, SceUInt *timeout) {
@@ -186,14 +188,23 @@ int sceAudioOutReleasePort(int port) {
     } while (0)
 int run_checks(void) {
     CHECK(!game_audio_start() && !game_audio_ready() && !game_audio_title_ready(), 1);
+    game_audio_preload_gameplay(0);
+    CHECK(threads_started == 1 && !opens, 26);
     const AudioAsset title = {35, 0, 12332};
     CHECK(!game_audio_test_prepare(&title, 1, 0) && game_audio_title_ready() && !game_audio_ready(),
           21);
-    game_audio_settings(100, 0, 1);
+    game_audio_preload_gameplay(0);
+    game_audio_preload_gameplay(0);
+    CHECK(threads_started == 2 && opens == 1 && !game_audio_ready(), 27);
+    game_audio_settings(100, 1, 1);
     game_audio_play(35, 0, 1, 100);
     game_audio_test_step(output);
-    CHECK(output[0] == 1000 && opens == 1 && !game_audio_errors(), 22);
+    CHECK(!output[0] && !game_audio_started(0), 28);
+    game_audio_settings(100, 0, 1);
+    game_audio_test_step(output);
+    CHECK(output[0] == 1000 && opens == 1 && game_audio_started(0) && !game_audio_errors(), 22);
     game_audio_play(-1, 0, 0, 0);
+    CHECK(!game_audio_started(0), 29);
     const AudioAsset assets[] = {{1, 0, 17}, {2, 0, 12332}};
     CHECK(!game_audio_test_prepare(assets, 2, 1) && game_audio_ready() && opens == 3 && reads == 3,
           12);
@@ -254,5 +265,17 @@ int run_checks(void) {
     game_audio_stop();
     for (int i = 0; i < 3; ++i)
         CHECK(!allocated[i], 20);
+    unsigned initial_opens = opens;
+    fail_loader = 1;
+    CHECK(!game_audio_start() && !game_audio_test_prepare(&title, 1, 0), 30);
+    game_audio_preload_gameplay(0);
+    CHECK(opens == initial_opens + 1 && !game_audio_ready(), 31);
+    game_audio_settings(100, 0, 1);
+    game_audio_play(35, 0, 1, 100);
+    game_audio_test_step(output);
+    CHECK(output[0] == 1000 && game_audio_started(0), 32);
+    game_audio_preload_gameplay(1);
+    CHECK(opens > initial_opens + 1 && game_audio_ready(), 33);
+    game_audio_stop();
     return 0;
 }

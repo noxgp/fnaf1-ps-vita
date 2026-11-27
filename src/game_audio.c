@@ -26,9 +26,10 @@ static Voice voices[AUDIO_VOICES];
 static Command queue[128];
 static AudioCache bank;
 static atomic_uint head, tail, positions[AUDIO_VOICES];
-static atomic_uint requested[AUDIO_VOICES], finished[AUDIO_VOICES];
+static atomic_uint requested[AUDIO_VOICES], started[AUDIO_VOICES], finished[AUDIO_VOICES];
 static atomic_int running, paused, master, music_enabled, errors, ready, title_ready;
 static SceUID thread = -1, loader = -1;
+static int preload_started;
 static int title_asset(int id) {
     return id == 11 || id == 34 || id == 35;
 }
@@ -126,6 +127,8 @@ static void audio_step(int16_t out[2048]) {
                 volume = 0;
             unsigned frames = v->frames, ticket = v->ticket;
             unsigned count = read_voice(v, pcm);
+            if (count && !frames)
+                atomic_store(&started[channel], ticket);
             if (v->active)
                 v->frames = frames + count;
             else
@@ -183,14 +186,6 @@ static int worker(SceSize n, void *p) {
         atomic_store(&ready, 1);
         return 0;
     }
-    loader = sceKernelCreateThread("FnafAudioPreload", load_gameplay, 0x10000120, 64 * 1024, 0,
-                                   SCE_KERNEL_CPU_MASK_USER_2, NULL);
-    if (loader < 0 || sceKernelStartThread(loader, 0, NULL) < 0) {
-        if (loader >= 0)
-            sceKernelDeleteThread(loader);
-        loader = -1;
-        load_gameplay(0, NULL);
-    }
     atomic_store_explicit(&title_ready, 1, memory_order_release);
     int16_t out[2048];
     while (atomic_load(&running)) {
@@ -209,6 +204,7 @@ static int worker(SceSize n, void *p) {
 int game_audio_start(void) {
     if (thread >= 0)
         return 0;
+    preload_started = 0;
     atomic_store(&ready, 0);
     atomic_store(&title_ready, 0);
     atomic_store(&master, 80);
@@ -228,6 +224,26 @@ int game_audio_start(void) {
     atomic_store(&title_ready, 1);
     atomic_store(&ready, 1);
     return -1;
+}
+void game_audio_preload_gameplay(int night_loading) {
+    if (!atomic_load(&running) || !game_audio_title_ready() || game_audio_ready())
+        return;
+    if (!preload_started) {
+        preload_started = 1;
+        loader = sceKernelCreateThread("FnafAudioPreload", load_gameplay, 0x10000120, 64 * 1024, 0,
+                                       SCE_KERNEL_CPU_MASK_USER_2, NULL);
+        if (loader < 0)
+            loader = sceKernelCreateThread("FnafAudioPreload", load_gameplay, 0x10000120, 64 * 1024,
+                                           0, 0, NULL);
+        if (loader >= 0 && sceKernelStartThread(loader, 0, NULL) < 0) {
+            sceKernelDeleteThread(loader);
+            loader = -1;
+        }
+    }
+    /* If startup could not create a loader, keep storage I/O off the mixer.
+     * Finish the load only after the frontend has presented the night clock. */
+    if (loader < 0 && night_loading)
+        load_gameplay(0, NULL);
 }
 void game_audio_stop(void) {
     atomic_store(&running, 0);
@@ -268,6 +284,12 @@ void game_audio_settings(int volume, int pause, int music) {
 }
 unsigned game_audio_position(int channel) {
     return channel >= 0 && channel < AUDIO_VOICES ? atomic_load(&positions[channel]) : 0;
+}
+int game_audio_started(int channel) {
+    if (channel < 0 || channel >= AUDIO_VOICES)
+        return 0;
+    unsigned ticket = atomic_load(&requested[channel]);
+    return ticket && atomic_load(&started[channel]) == ticket;
 }
 int game_audio_finished(int channel) {
     if (channel < 0 || channel >= AUDIO_VOICES)

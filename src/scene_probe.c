@@ -18,10 +18,16 @@
 #include "scene_engine.h"
 #include "touch_input.h"
 unsigned int _newlib_heap_size_user = 112 * 1024 * 1024;
+enum { SIMULATION_STEP_MS = 20 };
 static Game game;
-static int title_revealed;
+static int title_revealed, title_audio_enabled, warning_title_ready;
+static int warning_waiting(void) {
+    return game.phase == G_WARNING && game.startup_roll &&
+           (!warning_title_ready || !game_audio_title_ready());
+}
 static int runtime_loading(void) {
     return (game.phase == G_TITLE && !title_revealed) ||
+           (warning_waiting() && game.phase_ms >= WARNING_FADE_OUT_START_MS) ||
            (game.phase == G_PLAY && !game_audio_ready()) || game_view_loading(&game);
 }
 static void draw_data_help(int status) {
@@ -139,11 +145,12 @@ int main(void) {
     unsigned previous = 0, accum = 0, frames = 0, fps = 0, clock_ms = 0, microseconds = 0;
     GameSound pending_audio[AUDIO_VOICES] = {0};
     unsigned pending_channels = 0;
+    unsigned title_start_ms = 0;
     if (data_status == FNAF_DATA_READY)
         game_audio_start();
     while (!game.quit) {
         if (game.phase != G_TITLE)
-            title_revealed = 0;
+            title_revealed = title_audio_enabled = 0;
         SceCtrlData pad = {0};
         sceCtrlPeekBufferPositive(0, &pad, 1);
         unsigned pressed = pad.buttons & ~previous;
@@ -169,7 +176,8 @@ int main(void) {
         touch_begin(&contacts);
         for (unsigned t = 0; t < touch.reportNum && t < SCE_TOUCH_MAX_REPORT; ++t) {
             int tx, ty, initial = touch_contact(&contacts, touch.report[t].id);
-            if (!runtime_loading() && touch_to_game(area, touch.report[t].x, touch.report[t].y,
+            if (!warning_waiting() && !runtime_loading() &&
+                touch_to_game(area, touch.report[t].x, touch.report[t].y,
                                                     game.save.options.display, &tx, &ty))
                 touch_held |= game_touch(&game, tx, ty, initial);
         }
@@ -177,8 +185,9 @@ int main(void) {
         if (analog > -24 && analog < 24)
             analog = 0;
         int loading = runtime_loading();
-        game_input(&game, loading ? translate(pressed) & (IN_PAUSE | IN_HELP) : translate(pressed),
-                   loading ? 0 : translate(pad.buttons) | touch_held, loading ? 0 : analog);
+        if (!warning_waiting() && !(loading && (game.phase == G_TITLE || game.phase == G_PLAY)))
+            game_input(&game, loading ? translate(pressed) & (IN_PAUSE | IN_HELP) : translate(pressed),
+                       loading ? 0 : translate(pad.buttons) | touch_held, loading ? 0 : analog);
         now = sceKernelGetSystemTimeWide();
         uint64_t elapsed = now - last + microseconds;
         unsigned dt = (unsigned)(elapsed / 1000);
@@ -192,16 +201,17 @@ int main(void) {
         if (loading)
             accum = 0;
         else
-            while (accum >= 20) {
+            while (accum >= SIMULATION_STEP_MS) {
                 if (runtime_loading()) {
                     accum = 0;
                     break;
                 }
-                game_tick(&game, 20);
-                accum -= 20;
+                game_tick(&game, SIMULATION_STEP_MS);
+                accum -= SIMULATION_STEP_MS;
             }
         loading = runtime_loading();
-        int pause = loading || game.phase == G_PAUSE || game.phase == G_HELP ||
+        int pause = (loading && !(game.phase == G_TITLE && title_audio_enabled)) ||
+                    game.phase == G_PAUSE || game.phase == G_HELP ||
                     ((game.phase == G_OPTIONS || game.phase == G_AUDIO_OPTIONS ||
                       game.phase == G_CONTROL_OPTIONS) && game.options_parent == G_PAUSE);
         game_audio_settings(game.save.options.volume, pause, game.save.options.music);
@@ -251,6 +261,8 @@ int main(void) {
         if (rendered.phase == G_SCARE && !loading)
             rendered.phase_ms += accum;
         if (rendered.phase == G_PLAY && !loading) {
+            if (rendered.fox == 4)
+                rendered.fox_ms += accum;
             if (rendered.monitor_ms)
                 rendered.monitor_ms += accum;
             rendered.camera_cut_ms =
@@ -262,23 +274,32 @@ int main(void) {
         int waiting_for_title = rendered.phase == G_TITLE && !title_revealed;
         if (waiting_for_title)
             rendered.phase_ms = 500;
-        game_view_prepare(&rendered, waiting_for_title ? 0 : clock_ms, game_audio_position(2),
-                          rendered.phase == G_PLAY && loading);
+        unsigned view_clock = clock_ms;
+        if (rendered.phase == G_TITLE)
+            view_clock = waiting_for_title ? 0 : clock_ms - title_start_ms;
+        int night_loading = rendered.phase == G_PLAY && loading;
+        warning_title_ready = game_view_prepare(&rendered, view_clock, game_audio_position(2),
+                                                night_loading);
         if (waiting_for_title && gpu_queue_draw_ready() && game_audio_title_ready()) {
-            title_revealed = 1;
-            game.phase_ms = rendered.phase_ms;
+            title_audio_enabled = 1;
             game_audio_settings(game.save.options.volume, 0, game.save.options.music);
+            if (game_audio_started(0) || game_audio_finished(0) || game_audio_errors()) {
+                title_revealed = 1;
+                title_start_ms = clock_ms;
+                game.phase_ms = rendered.phase_ms;
+            }
         }
         gpu_begin();
-        if (waiting_for_title && !title_revealed)
-            gpu_text(gpu_asset_errors() ? 180 : 810, 506,
-                     gpu_asset_errors() ? "MENU FILE ERROR - CHECK GAME FILES" : "Preparing...",
-                     0xffffffffu);
-        else
+        if (waiting_for_title && !title_revealed) {
+            if (gpu_asset_errors())
+                gpu_text(180, 506, "MENU FILE ERROR - CHECK GAME FILES", 0xffffffffu);
+        } else
             game_view_draw(&rendered, fps, save_error);
         if (game_audio_errors())
             gpu_text(180, 52, "AUDIO FILE ERROR - CHECK GAME FILES V2", 0xff5555ffu);
         gpu_end();
+        if (title_revealed || night_loading)
+            game_audio_preload_gameplay(night_loading);
         ++frames;
         now = sceKernelGetSystemTimeWide();
         if (now - fps_time >= 1000000) {

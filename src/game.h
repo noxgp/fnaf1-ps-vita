@@ -42,7 +42,15 @@ enum {
     IN_DIRECT_LIGHT = 32768,
     IN_DIRECT_MUTE = 65536
 };
-enum { WARNING_DURATION_MS = 2800, NEWSPAPER_DURATION_MS = 4000, NIGHT_INTRO_DURATION_MS = 1800 };
+enum {
+    WARNING_FADE_MS = 1000,
+    WARNING_FADE_OUT_START_MS = 3500,
+    WARNING_DURATION_MS = WARNING_FADE_OUT_START_MS + WARNING_FADE_MS,
+    NEWSPAPER_FADE_MS = 2000,
+    NEWSPAPER_DURATION_MS = 7000 + NEWSPAPER_FADE_MS,
+    NIGHT_CARD_DURATION_MS = (130 * 1000 + 59) / 60,
+    NIGHT_INTRO_DURATION_MS = NIGHT_CARD_DURATION_MS + 300
+};
 enum { CONTROL_CONTEXTUAL, CONTROL_CLASSIC, CONTROL_CUSTOM, CONTROL_LAYOUT_COUNT };
 enum { BUTTON_NONE, BUTTON_CROSS, BUTTON_CIRCLE, BUTTON_SQUARE, BUTTON_TRIANGLE,
        BUTTON_L, BUTTON_R, CONTROL_BUTTON_COUNT };
@@ -82,12 +90,13 @@ typedef struct {
     int halloween, hallucination_roll, startup_roll, dead_roll, last_freddy_position, murmur_volume,
         event_volumes[24], side_attack_armed, binding_capture, door_seen[2], light_flicker;
     uint32_t rng, elapsed, phase_ms, hour_ms, drain_ms, passive_ms, move_ms[4], freddy_wait, fox_ms,
-        inside_ms[2], side_visited[2], light_ms, golden_ms, outage_roll, static_ms, camera_cut_ms,
-        door_ms[2], monitor_ms,
+        inside_ms[2], side_visited[2], golden_ms, outage_roll, static_ms, camera_cut_ms,
+        door_ms[2], monitor_ms, monitor_opened_ms,
         fox_cooldown, watch_ms, freddy_inside_ms, kitchen_ms, camera_scan, visual_rng,
         flicker_clock, twitch_ms;
     uint32_t event_rng, hallucination_left, event_second_ms, event_four_ms, event_five_ms,
-        event_ten_ms, murmur_ms, freddy_music_ms, ambience_cooldown_ms, dead_random_ms, camera_selected_ms;
+        event_ten_ms, murmur_ms, freddy_music_ms, ambience_cooldown_ms, dead_random_ms,
+        camera_selected_ms, intruder_ms;
     GameSound sounds[64];
     int sound_count;
 } Game;

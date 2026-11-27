@@ -143,9 +143,9 @@ def cache_layout():
     for obj in (60,61):
         for a in objects[obj]['common']['animations']:
             if a['animation'] in (12,14):critical.update(a['directions'][0]['images'])
-    # Keep monitor frames, map labels and all four office light overlays ready.
+    # Keep monitor frames, camera indicators, map labels and office light overlays ready.
     # A press or an animatronic moving should never have to load an overlay.
-    for obj in (69,73,*range(74,88),134):
+    for obj in (50,57,69,73,*range(74,88),134):
         for a in objects[obj]['common']['animations']:
             for direction in a['directions']:critical.update(direction['images'])
     atlas=prepare_sprite_atlas()
@@ -166,7 +166,7 @@ def cache_layout():
         if handle in atlas_pages:w,h=atlas_pages[handle]['width'],atlas_pages[handle]['height']
         else:m=images[handle];w=(m['width']*3+2)//4;h=(m['height']*3+2)//4
         budget+=((((w+7)&~7)*4*h)+0x3ffff)&~0x3ffff
-    assert budget<=44*1024*1024
+    assert budget<=45*1024*1024
     groups=json.loads((ROOT/'data/events/05.json').read_text(encoding='utf-8'))['groups'];plush={}
     for g in groups:
         for a in g['actions']:

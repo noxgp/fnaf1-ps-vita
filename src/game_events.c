@@ -52,9 +52,20 @@ void game_events_start(Game *g) {
     g->last_freddy_position = g->position[0];
     game_events_levels(g);
 }
-static void intruder(Game *g, int side) {
-    if (g->monitor && g->jam[side] && game_event_random(g, 3) == 0)
-        game_sound(g, 22 + (int)game_event_random(g, 4), A_INTRUDER, 0, 50);
+static void intruder(Game *g, unsigned ms) {
+    if (!g->monitor) {
+        if (g->intruder_ms)
+            game_sound(g, -1, A_INTRUDER, 0, 0);
+        g->intruder_ms = 0;
+    } else if (!g->monitor_ms && g->side_attack_armed) {
+        if (g->intruder_ms > ms) {
+            g->intruder_ms -= ms;
+        } else {
+            if (!g->intruder_ms || game_event_random(g, 3) == 0)
+                game_sound(g, 22 + (int)game_event_random(g, 4), A_INTRUDER, 0, 75);
+            g->intruder_ms = 5000;
+        }
+    }
 }
 void game_events_tick(Game *g, unsigned ms) {
     if (g->phase != G_PLAY)
@@ -114,9 +125,8 @@ void game_events_tick(Game *g, unsigned ms) {
             game_sound(g, 29, A_CREEK, 0, 26);
             g->ambience_cooldown_ms = 90000;
         }
-        intruder(g, 0);
-        intruder(g, 1);
     }
+    intruder(g, ms);
     g->event_ten_ms += ms;
     while (g->event_ten_ms >= 10000) {
         g->event_ten_ms -= 10000;

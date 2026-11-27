@@ -21,6 +21,7 @@ void gpu_get_stats(GpuStats *stats);
 int gpu_texture_ready(int handle);
 int gpu_texture_dimensions(int handle, unsigned *width, unsigned *height);
 void gpu_queue_reset(int display);
+void gpu_queue_discard_draws(void);
 void gpu_queue_image(int handle, float x, float y, float w, float h, unsigned color,
                      int perspective);
 void gpu_queue_prefetch(int handle);

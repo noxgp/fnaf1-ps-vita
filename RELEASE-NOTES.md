@@ -1,3 +1,36 @@
+# Update 6 (v1.0.6)
+
+Vita app version `00.28` · Title ID `FNAFSCN01`
+
+Thanks to everyone who tested the port, recorded comparisons and reported bugs.
+
+### Office and controls
+
+- D-pad and touch panning now match the analog stick at full tilt. The office can also be panned during the visible stages of a power outage.
+- The office and camera perspective use a gentler curve. The office background, doors and lit patches share the same projection to keep the left doorway and Bonnie's eyes aligned during flicker.
+- The door light and its hum cut out together using the Android room's random rule. The panel remains lit while the light is switched on. Pressing a jammed light button plays the jam sound.
+
+### Cameras and attacks
+
+- CAM 4B gives Chica priority when she shares the room with Freddy, so the feed keeps her poses in that situation. The selected feed is preloaded while the monitor is down and prioritized during the opening transition. The border and REC textures stay resident, and the REC blink starts visibly each time the monitor opens.
+- Once a Bonnie or Chica attack is armed, lowering the monitor triggers the jumpscare as soon as it finishes moving. Controls lock during that transition. Breathing sounds play while the monitor is up.
+- Foxy's running frames and the later jumpscare frames begin loading earlier, including when other animatronics are nearby. The running animation is interpolated between simulation ticks, and the renderer uses a loaded frame if the current one is late.
+
+### Startup and progress
+
+- The warning and Freddy newspaper fade in from black and fade out before the next screen. Their first frames wait for both the image and fade layer, avoiding a flash of the full image.
+- The main menu prepares during the warning. It waits for the first music buffer before appearing, and gameplay audio loading runs separately from menu playback.
+- New Game shows the newspaper before the night card. Continue goes straight to the saved night card. Both use the original white flashes and intro sound. After the card disappears, the Android clock appears on black while the office finishes loading.
+- The Night 5 paycheck screen plays its ending music. Continue stays on Night 5 while Night 6 unlocks separately. Older saves that displayed Night 6 under Continue are corrected on load.
+- Night 5 base drain and Foxy's power penalties were checked against the Android room rules. An idle-night simulation reaches 6 AM with roughly 29% power remaining before the final tick.
+- The Vita app title is **Five Nights at Freddy's**. The title screen restores the original Android `v 2.0.7` label and places `Ported by nox` and `Update 6 (v 1.0.5)` in the top right, clear of the unlocked menu items and stars.
+
+Install the new VPK over the previous public release in VitaShell and keep `ux0:data/fnaf1/` and your saves. For a fresh installation, use the Data Tool for Windows, macOS or Linux with your own supported Android 2.0.7 copy. [Installation and upgrade guide](https://github.com/noxgp/fnaf1_ps_vita#installation)
+
+Automated regression checks passed. If you report a device issue, include your Vita model, storage type and the night or camera where it happened. [Testing details](https://github.com/noxgp/fnaf1_ps_vita/blob/main/docs/TESTING.md) · [Report an issue](https://github.com/noxgp/fnaf1_ps_vita/issues)
+
+---
+
 # Update 5 (v1.0.5)
 
 Vita app version `00.27` · Title ID `FNAFSCN01`

@@ -1,5 +1,12 @@
 # Release validation
 
+## Update 6 (v1.0.6 / APP_VER 00.28)
+
+- Python format tests and the ARM core, renderer, asset reader, audio and UI regressions passed.
+- The checks cover full-stick and D-pad panning speed, the shared room projection, synchronized light and sound flicker, CAM 4B priority, camera preloading, the monitor-down attack and older save migration.
+- Startup checks cover the warning and newspaper fade layers, the first menu frame and audio buffer, intro flashes, the clock placement and menu layout with all unlocks active.
+- Device timing for this release package has not been measured.
+
 ## Update 5 (v1.0.5 / APP_VER 00.27)
 
 - Python format tests and the ARM core, renderer, asset reader, audio and UI regressions passed.

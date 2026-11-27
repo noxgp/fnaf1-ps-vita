@@ -48,7 +48,7 @@ void animation_texture_size(int handle, unsigned *width, unsigned *height) {
                handle == 296 || handle == 297) {
         /* Camera room object 51, animation 51. Keep the sequence small enough
          * to preload alongside the office and monitor textures. */
-        *width = (*width + 2) / 3;
-        *height = (*height + 2) / 3;
+        *width = (*width * 3 + 5) / 10;
+        *height = (*height * 3 + 5) / 10;
     }
 }

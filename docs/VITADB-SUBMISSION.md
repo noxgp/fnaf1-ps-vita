@@ -1,28 +1,28 @@
 # VitaDB listing details
 
-Use this information when submitting Update 5 or updating the existing VitaDB listing.
+Use this information when updating the existing VitaDB listing to Update 6.
 
 | Field | Value |
 | --- | --- |
-| Name | Five Nights At Freddy's |
+| Name | Five Nights at Freddy's |
 | Author | nox |
-| Version | 1.0.5 (Vita APP_VER 00.27) |
+| Version | 1.0.6 (Vita APP_VER 00.28) |
 | Title ID | FNAFSCN01 |
 | Category | Game port / unofficial native adaptation |
-| Source | https://github.com/noxgp/fnaf1-ps-vita |
-| Release | https://github.com/noxgp/fnaf1-ps-vita/releases/tag/v1.0.5 |
-| VPK | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.5/FNAF1-Vita-v1.0.5.vpk |
-| Data tool | https://github.com/noxgp/fnaf1-ps-vita/releases/download/v1.0.5/FNAF1-Data-Tool-v1.0.5.zip |
+| Source | https://github.com/noxgp/fnaf1_ps_vita |
+| Release | https://github.com/noxgp/fnaf1_ps_vita/releases/tag/v1.0.6 |
+| VPK | https://github.com/noxgp/fnaf1_ps_vita/releases/download/v1.0.6/FNAF1-Vita-v1.0.6.vpk |
+| Data tool | https://github.com/noxgp/fnaf1_ps_vita/releases/download/v1.0.6/FNAF1-Data-Tool-v1.0.6.zip |
 | Icon | `sce_sys/icon0.png` from the release VPK |
 | Game data URL | None — users prepare locally from their own supported Android copy |
 
 Description:
 
-Unofficial native PS Vita adaptation using Five Nights at Freddy's Android game data. Includes nights 1–6, Custom Night, saving, phone audio and subtitles, and local Extras. The v1.0.5 hotfix improves door light and jumpscare loading and fixes the Circle button on the title screen. Playable game data is prepared separately. Requires local preparation from the exact supported application-data revision documented on GitHub. Not a general Android/Clickteam emulator and not affiliated with the original authors. AI edge fidelity, perspective and device performance have documented limitations.
+Unofficial native PS Vita adaptation using Five Nights at Freddy's Android game data. Includes nights 1–6, Custom Night, saving, phone audio and subtitles, and local Extras. Update 6 improves startup, panning, door-light flicker, cameras and jumpscare loading. Prepare playable game data locally from the supported Android 2.0.7 revision documented on GitHub. See the README for known limitations in AI behavior, perspective and device performance.
 
 Installation note:
 
-Install the VPK, run the Data Tool against an owned supported APK, and copy the generated fnaf1 folder to ux0:data/. The [installation guide](https://github.com/noxgp/fnaf1-ps-vita#installation) covers Windows, macOS and Linux. Keep progress.sav/progress.bak when upgrading. The downloader must not fetch or redistribute original game files.
+Install the VPK, run the Data Tool against an owned supported APK, and copy the generated fnaf1 folder to ux0:data/. Keep progress.sav and progress.bak when upgrading. The installation guide covers Windows, macOS and Linux. The downloader must not fetch or redistribute original game files. [Installation guide](https://github.com/noxgp/fnaf1_ps_vita#installation)
 
 Checklist:
 

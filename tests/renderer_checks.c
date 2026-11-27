@@ -178,7 +178,7 @@ void vita2d_draw_array_textured(const vita2d_texture *t, SceGxmPrimitiveType mod
     (void)t;
     (void)color;
     ++arrays;
-    if (mode != SCE_GXM_PRIMITIVE_TRIANGLE_STRIP || n != PERSPECTIVE_VERTICES)
+    if (mode != SCE_GXM_PRIMITIVE_TRIANGLE_STRIP || n < 4 || n > PERSPECTIVE_VERTICES || n % 2)
         ++bad;
     if ((const unsigned char *)v < pool || (const unsigned char *)(v + n) > pool + sizeof(pool))
         ++bad;
@@ -352,8 +352,9 @@ int run_checks(void) {
     gpu_end();
     const PerspectiveVertex *uv = (const PerspectiveVertex *)protected_data;
     CHECK(uv && uv[0].u == plush->x / 1024.0f && uv[0].v == plush->y / 512.0f, 22);
-    CHECK(uv[PERSPECTIVE_VERTICES - 1].u == (plush->x + plush->width) / 1024.0f &&
-              uv[PERSPECTIVE_VERTICES - 1].v == (plush->y + plush->height) / 512.0f,
+    unsigned last = protected_size / sizeof(*uv) - 1;
+    CHECK(uv[last].u == (plush->x + plush->width) / 1024.0f &&
+              uv[last].v == (plush->y + plush->height) / 512.0f,
           23);
     ready[button->page] = 1;
     gpu_queue_reset(0);

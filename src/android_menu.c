@@ -7,6 +7,8 @@
 #include <stddef.h>
 
 #define COUNT(a) ((int)(sizeof(a) / sizeof(*(a))))
+enum { NIGHT_FLASH_OBJECT = 44, NIGHT_FLASH_FPS = 45, LOADING_CLOCK_OBJECT = 173 };
+enum { FADE_TEXTURE = 194 };
 static const AndroidWidget *widget(int scene, int object) {
     for (int i = 0; i < COUNT(android_widgets); ++i)
         if (android_widgets[i].scene == scene && android_widgets[i].object == object)
@@ -94,7 +96,7 @@ static void fade(int alpha) {
     if (alpha > 255)
         alpha = 255;
     if (alpha)
-        gpu_queue_image(194, 0, 2, 960, 540, (unsigned)alpha << 24 | 0xffffffu, 0);
+        gpu_queue_image(FADE_TEXTURE, 0, 2, 960, 540, (unsigned)alpha << 24 | 0xffffffu, 0);
 }
 static void cursor(int left, int center_y) {
     object_at(14, 0, 0, (float)(left - 36), (float)center_y);
@@ -109,21 +111,8 @@ static int title_object(int action) {
     const int ids[] = {12, 13, 20, 24, 34, 33};
     return ids[action];
 }
-static void warm_title(const Game *g) {
-    int n = 4 + (g->save.unlocked >= 6) + (g->save.unlocked >= 7);
-    for (int i = 0; i < n; ++i)
-        gpu_queue_warm(scene_art(title_object(game_title_action(g, i)), 0, 0));
-    const int objects[] = {9, 10, 11, 14, 17, 18, 21, 22, 32, 36, 37};
-    for (int i = 0; i < COUNT(objects); ++i)
-        gpu_queue_warm(scene_art(objects[i], 0, 0));
-    const AndroidText *texts[] = {caption(40, 0), caption(41, 0),
-                                  caption(43, g->save.next_night - 1), caption(42, 0)};
-    for (int i = 0; i < COUNT(texts); ++i)
-        if (texts[i])
-            gpu_queue_warm(texts[i]->handle);
-    gpu_queue_warm(UI_PORT_CREDIT);
-}
-static void title(const Game *g, int confirm) {
+static void title(const Game *g, unsigned ms, int confirm) {
+    background(ms);
     if (confirm) {
         string_original(3, 42, 0);
         original(3, 36, 0, 0);
@@ -302,35 +291,86 @@ int android_menu_phase(int p) {
            p == G_AUDIO_OPTIONS || p == G_EXTRAS || p == G_CUSTOM || p == G_INTRO ||
            p == G_CONTROL_OPTIONS;
 }
+int android_menu_warning_ready(void) {
+    return gpu_texture_ready(scene_art(0, 0, 0)) && gpu_texture_ready(FADE_TEXTURE);
+}
+static int night_animation(int night) {
+    return night == 1 ? 0 : night + 10;
+}
 void android_menu_night_card(int night) {
     original(4, 45, 0, 0);
-    original(4, 46, night == 1 ? 0 : night + 10, 0);
+    original(4, 46, night_animation(night), 0);
 }
-void android_menu_prepare(const Game *g, unsigned ms) {
+int android_menu_night_card_ready(int night) {
+    if (!gpu_texture_ready(FADE_TEXTURE) || !gpu_texture_ready(scene_art(45, 0, 0)) ||
+        !gpu_texture_ready(scene_art(46, night_animation(night), 0)))
+        return 0;
+    for (int f = 0; f < scene_art_count(NIGHT_FLASH_OBJECT, 0); ++f)
+        if (!gpu_texture_ready(scene_art(NIGHT_FLASH_OBJECT, 0, f)))
+            return 0;
+    return 1;
+}
+void android_menu_loading_clock(void) {
+    /* Sprite and anchor of Active 173 in the Android 10-wait scene. */
+    object_at(LOADING_CLOCK_OBJECT, 0, 0, 1226, 675);
+}
+/* While the warning draws, report whether the first complete menu frame is ready. */
+int android_menu_prepare(const Game *g, unsigned ms) {
     int p = g->phase;
     if (p == G_WARNING) {
-        original(0, 0, 0, 0);
-        warm_title(g);
-        fade(fade_alpha(g->phase_ms, WARNING_DURATION_MS, 400, 550));
-        return;
+        int warning_ready = android_menu_warning_ready();
+        title(g, 0, 0);
+        int title_ready = warning_ready && gpu_queue_draw_ready();
+        gpu_queue_discard_draws();
+        if (warning_ready) {
+            original(0, 0, 0, 0);
+            fade(fade_alpha(g->phase_ms, WARNING_DURATION_MS, WARNING_FADE_MS, WARNING_FADE_MS));
+        }
+        gpu_queue_resident(scene_art(0, 0, 0));
+        gpu_queue_focus(FADE_TEXTURE);
+        return title_ready;
+    }
+    if (p == G_TITLE || p == G_CONFIRM_NEW) {
+        title(g, ms, p == G_CONFIRM_NEW);
+        gpu_queue_warm(scene_art(45, 0, 0));
+        gpu_queue_warm(scene_art(46, 0, 0));
+        gpu_queue_warm(scene_art(46, night_animation(g->save.next_night), 0));
+        gpu_queue_warm(scene_art(LOADING_CLOCK_OBJECT, 0, 0));
+        gpu_queue_resident(FADE_TEXTURE);
+        if (p == G_TITLE)
+            fade(fade_alpha(g->phase_ms, 0, 500, 0));
+        return 0;
     }
     if (p == G_INTRO) {
-        android_menu_night_card(g->night);
-        if (g->phase_ms < 300) {
-            int frame = (int)(g->phase_ms / 27);
-            int h = scene_art(44, 0, frame);
+        if (g->phase_ms >= NIGHT_CARD_DURATION_MS) {
+            android_menu_loading_clock();
+            return 0;
+        }
+        gpu_queue_warm(scene_art(LOADING_CLOCK_OBJECT, 0, 0));
+        int frames = scene_art_count(NIGHT_FLASH_OBJECT, 0);
+        for (int f = 0; f < frames; ++f)
+            gpu_queue_resident(scene_art(NIGHT_FLASH_OBJECT, 0, f));
+        if (android_menu_night_card_ready(g->night))
+            android_menu_night_card(g->night);
+        else {
+            gpu_queue_resident(scene_art(45, 0, 0));
+            gpu_queue_resident(scene_art(46, night_animation(g->night), 0));
+            return 0;
+        }
+        fade(fade_alpha(g->phase_ms, NIGHT_CARD_DURATION_MS, WARNING_FADE_MS, 0));
+        int frame = (int)(g->phase_ms * NIGHT_FLASH_FPS / 1000);
+        if (frame < frames) {
+            int h = scene_art(NIGHT_FLASH_OBJECT, 0, frame);
             const ImageDef *im = scene_image(h);
             if (im)
-                gpu_queue_image(h, 0, 2, 960, im->height * .75f, 0xffffffffu, 0);
+                gpu_queue_image(h, 0, 2 - im->hotspot_y * .75f, 960, im->height * .75f,
+                                0xffffffffu, 0);
         }
-        fade(fade_alpha(g->phase_ms, NIGHT_INTRO_DURATION_MS, 300, 0));
-        return;
+        return 0;
     }
     if (p != G_CUSTOM)
         background(ms);
-    if (p == G_TITLE || p == G_CONFIRM_NEW)
-        title(g, p == G_CONFIRM_NEW);
-    else if (p == G_OPTIONS)
+    if (p == G_OPTIONS)
         options(g);
     else if (p == G_AUDIO_OPTIONS)
         audio_options(g);
@@ -340,10 +380,7 @@ void android_menu_prepare(const Game *g, unsigned ms) {
         extras(g);
     else if (p == G_CUSTOM)
         custom(g);
-    if (p == G_TITLE || p == G_CONFIRM_NEW)
-        native_caption(UI_PORT_CREDIT, 64, 655);
-    if (p == G_TITLE)
-        fade(fade_alpha(g->phase_ms, 0, 500, 0));
+    return 0;
 }
 static int hit(int x, int y, int left, int top, int w, int h) {
     return x >= left && x < left + w && y >= top && y < top + h;
